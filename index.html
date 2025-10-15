@@ -1,30 +1,57 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>私の最初のウェブサイト</title>
-</head>
-<body>
-    <h1>こんにちは!</h1>
-    <p>これは私が作った最初のウェブサイトです。</p>
-    <button onclick="sayHello()">ボタンを押してね</button>
+<p id="counter">ボタンを押した回数: 0回</p>
     
     <script>
+        let count = 0;
         function sayHello() {
+            count++;
             alert('こんにちは! Gitで管理しているよ!');
+            document.getElementById('counter').textContent = 
+                'ボタンを押した回数: ' + count + '回';
         }
     </script>
-</body>
-</html>
 ```
 
-このファイルを `my-website` フォルダの中に保存してね!
-
-## ステップ3: 動くか確認してみる
-
-`index.html` をダブルクリックして、ブラウザで開いてみよう!
-ボタンを押すとメッセージが出るはず! 😊
-
-## ステップ4: 最初のバージョンを記録
+## ステップ6: 変更を記録
 ```
+git status
 git add index.html
-git commit -m "最初のウェブサイトを作成"
+git commit -m "カウンター機能を追加"
+```
+
+## ステップ7: 歴史を見てみる
+```
+git log
+```
+
+2つのコミット(記録)が見えるよ!
+
+## ステップ8: 前のバージョンに戻ってみる
+
+過去の状態を見たいとき:
+```
+git log --oneline
+```
+
+最初のコミットのID(例: `a1b2c3d`)をコピーして:
+```
+git checkout a1b2c3d
+```
+
+index.htmlを開くと、カウンター機能がない状態に戻ってる!
+
+最新に戻るには:
+```
+git checkout main
+```
+または
+```
+git checkout master
+```
+
+## ステップ9: GitHubにアップロード
+
+1. GitHubで新しいリポジトリ `my-website` を作る
+2. ターミナルで:
+```
+git remote add origin https://github.com/あなたのユーザー名/my-website.git
+git push -u origin main

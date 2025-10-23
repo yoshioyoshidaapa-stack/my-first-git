@@ -490,9 +490,6 @@
                 vrButton.textContent = 'VR非対応';
             }
 
-            // VRボタンは手動で作成（VRButton.jsが使えない場合の対応）
-            // document.body.appendChild(THREE.VRButton.createButton(renderer));
-
             const controller1 = renderer.xr.getController(0);
             scene.add(controller1);
             controllers.push(controller1);
@@ -548,122 +545,6 @@
 
             updateStatus('準備完了 - GLBファイルを選択してください');
             renderer.setAnimationLoop(animate);
-        }
-
-        function createLowPolyHuman() {
-            const humanGroup = new THREE.Group();
-            const skinMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0xffdbac,
-                roughness: 0.8,
-                metalness: 0.1
-            });
-
-            const head = new THREE.Mesh(new THREE.SphereGeometry(0.105, 16, 16), skinMaterial);
-            head.position.y = 1.545;
-            humanGroup.add(head);
-
-            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.1, 12), skinMaterial);
-            neck.position.y = 1.44;
-            humanGroup.add(neck);
-
-            const shoulderGeom = new THREE.SphereGeometry(0.07, 12, 12);
-            const leftShoulder = new THREE.Mesh(shoulderGeom, skinMaterial);
-            leftShoulder.position.set(-0.2, 1.34, 0);
-            leftShoulder.scale.set(1, 0.7, 0.8);
-            humanGroup.add(leftShoulder);
-            
-            const rightShoulder = new THREE.Mesh(shoulderGeom, skinMaterial);
-            rightShoulder.position.set(0.2, 1.34, 0);
-            rightShoulder.scale.set(1, 0.7, 0.8);
-            humanGroup.add(rightShoulder);
-
-            const upperChest = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 16), skinMaterial);
-            upperChest.position.y = 1.25;
-            upperChest.scale.set(0.9, 0.6, 0.6);
-            humanGroup.add(upperChest);
-
-            const chest = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), skinMaterial);
-            chest.position.set(0, 1.15, 0.02);
-            chest.scale.set(0.95, 0.65, 0.75);
-            humanGroup.add(chest);
-
-            const waist = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.18, 16), skinMaterial);
-            waist.position.y = 1.0;
-            humanGroup.add(waist);
-
-            const hips = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 16), skinMaterial);
-            hips.position.y = 0.83;
-            hips.scale.set(0.95, 0.55, 1.0);
-            humanGroup.add(hips);
-
-            const upperArmGeom = new THREE.CylinderGeometry(0.035, 0.045, 0.3, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const arm = new THREE.Mesh(upperArmGeom, skinMaterial);
-                arm.position.set(idx === 0 ? -0.235 : 0.235, 1.19, 0);
-                humanGroup.add(arm);
-            });
-
-            const forearmGeom = new THREE.CylinderGeometry(0.028, 0.035, 0.24, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const forearm = new THREE.Mesh(forearmGeom, skinMaterial);
-                forearm.position.set(idx === 0 ? -0.235 : 0.235, 0.92, 0);
-                humanGroup.add(forearm);
-            });
-
-            const handGeom = new THREE.SphereGeometry(0.04, 12, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const hand = new THREE.Mesh(handGeom, skinMaterial);
-                hand.position.set(idx === 0 ? -0.235 : 0.235, 0.76, 0);
-                hand.scale.set(0.8, 1.2, 0.5);
-                humanGroup.add(hand);
-            });
-
-            const thighGeom = new THREE.CylinderGeometry(0.055, 0.075, 0.44, 16);
-            ['left', 'right'].forEach((side, idx) => {
-                const thigh = new THREE.Mesh(thighGeom, skinMaterial);
-                thigh.position.set(idx === 0 ? -0.095 : 0.095, 0.52, 0);
-                humanGroup.add(thigh);
-            });
-
-            const kneeGeom = new THREE.SphereGeometry(0.06, 12, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const knee = new THREE.Mesh(kneeGeom, skinMaterial);
-                knee.position.set(idx === 0 ? -0.095 : 0.095, 0.3, 0);
-                knee.scale.set(0.9, 1, 0.9);
-                humanGroup.add(knee);
-            });
-
-            const calfGeom = new THREE.CylinderGeometry(0.04, 0.055, 0.28, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const calf = new THREE.Mesh(calfGeom, skinMaterial);
-                calf.position.set(idx === 0 ? -0.095 : 0.095, 0.16, 0);
-                humanGroup.add(calf);
-            });
-
-            const ankleGeom = new THREE.CylinderGeometry(0.035, 0.04, 0.06, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const ankle = new THREE.Mesh(ankleGeom, skinMaterial);
-                ankle.position.set(idx === 0 ? -0.095 : 0.095, 0.03, 0);
-                humanGroup.add(ankle);
-            });
-
-            const footGeom = new THREE.SphereGeometry(0.045, 12, 12);
-            ['left', 'right'].forEach((side, idx) => {
-                const foot = new THREE.Mesh(footGeom, skinMaterial);
-                foot.position.set(idx === 0 ? -0.095 : 0.095, 0.03, 0.08);
-                foot.scale.set(0.9, 0.6, 2.0);
-                humanGroup.add(foot);
-            });
-
-            humanGroup.traverse(node => {
-                if (node.isMesh) {
-                    node.castShadow = true;
-                    node.receiveShadow = true;
-                }
-            });
-
-            humanGroup.position.set(0, 0, 3);
-            scene.add(humanGroup);
         }
 
         function onFileSelect(event) {

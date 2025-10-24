@@ -526,7 +526,14 @@
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // 人型は削除
+            // 直径1mの球
+            const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x4ecdc4 });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.set(0, 0.5, -3);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            scene.add(sphere);
 
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);

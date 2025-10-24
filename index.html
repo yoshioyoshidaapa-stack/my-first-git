@@ -476,12 +476,19 @@
             if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
                     if (supported) {
-                        vrButton.onclick = () => {
+                        vrButton.onclick = async () => {
                             if (!renderer.xr.isPresenting) {
-                                renderer.xr.getSession().then(() => {
+                                try {
+                                    const session = await navigator.xr.requestSession('immersive-vr', {
+                                        optionalFeatures: ['local-floor', 'bounded-floor']
+                                    });
+                                    await renderer.xr.setSession(session);
                                     isVRMode = true;
-                                    updateStatus('VRモード起動');
-                                });
+                                    updateStatus('VRモード起動成功');
+                                } catch (error) {
+                                    console.error('VRセッション開始エラー:', error);
+                                    updateStatus('VRモード起動エラー: ' + error.message);
+                                }
                             }
                         };
                         updateStatus('VR対応デバイスを検出');

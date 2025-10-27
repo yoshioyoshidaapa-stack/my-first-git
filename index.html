@@ -508,12 +508,42 @@
             }
 
             const controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('connected', (event) => {
+                updateStatus('左コントローラー接続: ' + event.data.handedness);
+                console.log('Controller 0 connected:', event.data);
+            });
+            controller1.addEventListener('disconnected', () => {
+                updateStatus('左コントローラー切断');
+            });
             scene.add(controller1);
             controllers.push(controller1);
 
             const controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('connected', (event) => {
+                updateStatus('右コントローラー接続: ' + event.data.handedness);
+                console.log('Controller 1 connected:', event.data);
+            });
+            controller2.addEventListener('disconnected', () => {
+                updateStatus('右コントローラー切断');
+            });
             scene.add(controller2);
             controllers.push(controller2);
+
+            // コントローラーの視覚的表現を追加
+            const controllerModelFactory = new THREE.Group();
+            const geometry = new THREE.CylinderGeometry(0.01, 0.02, 0.1, 8);
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            
+            const controller1Grip = renderer.xr.getControllerGrip(0);
+            const mesh1 = new THREE.Mesh(geometry, material);
+            controller1Grip.add(mesh1);
+            scene.add(controller1Grip);
+
+            const controller2Grip = renderer.xr.getControllerGrip(1);
+            const mesh2 = new THREE.Mesh(geometry, material.clone());
+            mesh2.material.color.set(0x0000ff);
+            controller2Grip.add(mesh2);
+            scene.add(controller2Grip);
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
@@ -1178,13 +1208,28 @@
 
         function handleVRControllers(delta) {
             const session = renderer.xr.getSession();
-            if (!session) return;
+            if (!session) {
+                updateStatus('VRセッションなし');
+                return;
+            }
+
+            if (!session.inputSources || session.inputSources.length === 0) {
+                // updateStatus('コントローラー未検出');
+                return;
+            }
 
             for (let i = 0; i < session.inputSources.length; i++) {
                 const inputSource = session.inputSources[i];
                 const gamepad = inputSource.gamepad;
                 
-                if (!gamepad) continue;
+                if (!gamepad) {
+                    console.log('Gamepad not found for input source', i);
+                    continue;
+                }
+
+                console.log(`Controller ${i} (${inputSource.handedness}):`, 
+                    'axes:', gamepad.axes, 
+                    'buttons:', gamepad.buttons.map((b, idx) => ({idx, pressed: b.pressed, value: b.value})));
 
                 if (inputSource.handedness === 'left') {
                     const axes = gamepad.axes;

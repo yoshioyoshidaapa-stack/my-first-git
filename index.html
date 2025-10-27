@@ -355,7 +355,7 @@
             Bボタン : 下降<br>
             右グリップ : ズームイン<br>
             右トリガー : ズームアウト<br>
-            Xボタン長押し : メモモード<br>
+            Xボタン長押し : メモモード切替<br>
             右トリガー(メモ時) : メモ配置<br>
             <br>
             <strong>メモ機能：</strong><br>
@@ -1216,27 +1216,23 @@
                         }
                     }
 
-                    // Xボタン長押しでメモモード切替
+                    // Xボタン長押しでメモモード切替（ON/OFF両方）
                     if (gamepad.buttons[4]) {
                         if (gamepad.buttons[4].pressed) {
                             if (xButtonPressTime === 0) {
                                 xButtonPressTime = performance.now();
                             } else if (performance.now() - xButtonPressTime > 500) {
-                                if (!vrMemoMode) {
-                                    vrMemoMode = true;
-                                    updateStatus('VRメモモード ON');
-                                    xButtonPressTime = 0;
-                                }
+                                // 0.5秒以上長押しでトグル
+                                vrMemoMode = !vrMemoMode;
+                                updateStatus(vrMemoMode ? 'VRメモモード ON' : 'VRメモモード OFF');
+                                xButtonPressTime = -1; // 連続トグル防止
                             }
                         } else {
-                            if (xButtonPressTime > 0 && performance.now() - xButtonPressTime < 500) {
-                                // 短押しは上昇
-                            }
                             xButtonPressTime = 0;
                         }
                     }
 
-                    // Yボタンでメモモード解除
+                    // Yボタンでも解除可能（念のため）
                     if (gamepad.buttons[5] && gamepad.buttons[5].pressed && vrMemoMode) {
                         vrMemoMode = false;
                         updateStatus('VRメモモード OFF');

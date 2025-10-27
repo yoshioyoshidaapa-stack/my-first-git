@@ -355,6 +355,8 @@
             Bボタン : 下降<br>
             右グリップ : ズームイン<br>
             右トリガー : ズームアウト<br>
+            Xボタン長押し : メモモード<br>
+            右トリガー(メモ時) : メモ配置<br>
             <br>
             <strong>メモ機能：</strong><br>
             Mキー : メモモード切替<br>
@@ -444,6 +446,8 @@
         let recognition = null;
         let isRecording = false;
         let pendingMemoPosition = null;
+        let vrMemoMode = false;
+        let xButtonPressTime = 0;
 
         function updateStatus(msg) {
             statusEl.textContent = msg;
@@ -1211,17 +1215,75 @@
                             camera.position.y = PLAYER_HEIGHT;
                         }
                     }
+
+                    // Xボタン長押しでメモモード切替
+                    if (gamepad.buttons[4]) {
+                        if (gamepad.buttons[4].pressed) {
+                            if (xButtonPressTime === 0) {
+                                xButtonPressTime = performance.now();
+                            } else if (performance.now() - xButtonPressTime > 500) {
+                                if (!vrMemoMode) {
+                                    vrMemoMode = true;
+                                    updateStatus('VRメモモード ON');
+                                    xButtonPressTime = 0;
+                                }
+                            }
+                        } else {
+                            if (xButtonPressTime > 0 && performance.now() - xButtonPressTime < 500) {
+                                // 短押しは上昇
+                            }
+                            xButtonPressTime = 0;
+                        }
+                    }
+
+                    // Yボタンでメモモード解除
+                    if (gamepad.buttons[5] && gamepad.buttons[5].pressed && vrMemoMode) {
+                        vrMemoMode = false;
+                        updateStatus('VRメモモード OFF');
+                    }
                 }
 
                 if (inputSource.handedness === 'right') {
-                    if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
-                        zoomIn();
+                    // メモモード時：トリガーでメモ配置
+                    if (vrMemoMode && gamepad.buttons[0] && gamepad.buttons[0].pressed) {
+                        if (!pendingMemoPosition) {
+                            placeVRMemo();
+                        }
                     }
-                    if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
-                        zoomOut();
+                    
+                    // 通常モード：ズーム操作
+                    if (!vrMemoMode) {
+                        if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
+                            zoomIn();
+                        }
+                        if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
+                            zoomOut();
+                        }
                     }
                 }
             }
+        }
+
+        function placeVRMemo() {
+            // カメラの前方3mにメモを配置
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            const position = camera.position.clone().add(direction.multiplyScalar(3));
+            
+            pendingMemoPosition = position;
+            
+            // VRでは音声入力を自動開始
+            if (recognition) {
+                startVoiceInputForMemo(position);
+            } else {
+                // 音声認識がない場合は簡易テキスト
+                const timestamp = new Date().toLocaleTimeString('ja-JP');
+                createMemo(position, `VRメモ ${timestamp}`, 'normal');
+                vrMemoMode = false;
+                updateStatus('VRメモを追加しました');
+            }
+            
+            pendingMemoPosition = null;
         }
 
         function animate() {

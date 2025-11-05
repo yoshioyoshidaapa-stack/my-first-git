@@ -1,983 +1,1116 @@
-let scene, camera, renderer;
-let moveForward = false, moveBackward = false;
-let moveLeft = false, moveRight = false;
-let canJump = false;
-let velocity = new THREE.Vector3();
-let direction = new THREE.Vector3();
-let prevTime = performance.now();
-let euler = new THREE.Euler(0, 0, 0, 'YXZ');
-let isMouseDown = false;
-let lastMouseX = 0;
-let lastMouseY = 0;
-let zoomLevel = 75;
-const MIN_FOV = 30;
-const MAX_FOV = 100;
-let modelScale = 1.0;
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer and VR Walkthrough</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; font-family: sans-serif; }
+        #container { width: 100vw; height: 100vh; }
+        #status, #updateDate { 
+            position: absolute; top: 10px; left: 10px; padding: 5px 10px; background: rgba(0, 0, 0, 0.7); color: white; border-radius: 5px; font-size: 14px; z-index: 100;
+        }
+        #updateDate { top: 40px; }
+        #info { 
+            position: absolute; bottom: 10px; right: 10px; padding: 10px; background: rgba(255, 255, 255, 0.9); border-radius: 5px; z-index: 100; max-width: 300px;
+        }
+        #info button, #info input { margin: 5px 0; padding: 8px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; display: block; width: 100%; box-sizing: border-box; }
+        #info input[type="file"] { border: none; padding: 0; }
+        #scaleControls button { width: 45px; display: inline-block; margin: 2px; }
+        #scaleValue { display: block; margin-top: 5px; font-weight: bold; }
 
-const PLAYER_HEIGHT = 1.6;
-const MOVE_SPEED = 80.0;
-const VR_MOVE_SPEED = 5.0;
-const JUMP_VELOCITY = 8.0;
-const GRAVITY = 20.0;
+        /* VR Mode Indicator */
+        #memoModeIndicator {
+            position: absolute; top: 10px; right: 10px; padding: 8px 15px; background-color: #f44336; color: white; border-radius: 5px; font-weight: bold; display: none; z-index: 100;
+        }
 
-const statusEl = document.getElementById('status');
-let controllers = [];
-let isVRMode = false;
-const INITIAL_CAMERA_POS = { x: 0, y: PLAYER_HEIGHT, z: 5 };
-const INITIAL_ZOOM = 75;
-let memoMode = false;
-let memos = [];
-let memoCounter = 0;
-let recognition = null;
-let isRecording = false;
-let pendingMemoPosition = null;
-let vrMemoMode = false;
-let xButtonPressTime = 0;
-let sphereMesh; // 球体のメッシュを保持するための変数
+        /* Memo Panel */
+        #memoPanel {
+            position: absolute; top: 10px; right: 10px; width: 250px; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 5px; z-index: 90; max-height: 80vh; overflow-y: auto; display: none;
+        }
+        .memo-item {
+            border: 1px solid #ccc; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 12px;
+        }
+        .priority-high { border-left: 5px solid #f44336; }
+        .priority-normal { border-left: 5px solid #ffeb3b; }
+        .priority-low { border-left: 5px solid #4CAF50; }
+        .memo-item button { padding: 4px 8px; font-size: 10px; margin-top: 5px; cursor: pointer; }
 
-// HTMLの更新日時（手動で更新してください）
-const HTML_UPDATE_DATE = '2025/11/05 14:26'; // 更新しました
+        /* Dialogs */
+        .dialog-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; display: none;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .dialog-content {
+            background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%; text-align: center;
+        }
+        .dialog-content textarea { width: 100%; height: 100px; margin-bottom: 10px; padding: 5px; box-sizing: border-box; }
+        .dialog-content button { margin: 5px; padding: 10px; width: 45%; }
+        
+        /* Loading */
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background: rgba(0, 0, 0, 0.8); color: white; border-radius: 10px; z-index: 1000; display: none;
+        }
+        
+        /* Voice Button Recording */
+        #voiceButton.recording {
+            background-color: #f44336;
+            color: white;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/PLYLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/webxr/VRButton.js"></script>
+</head>
+<body>
+    <div id="container"></div>
 
-function updateStatus(msg) {
-    statusEl.textContent = msg;
-    console.log(msg);
-}
+    <div id="status"></div>
+    <div id="updateDate"></div>
+    <div id="loading" style="display:none;">モデルを読み込み中...</div>
+    <div id="memoModeIndicator">メモモード ON</div>
 
-function init() {
-    updateStatus('初期化中...');
+    <div id="info">
+        <h3>操作パネル</h3>
+        <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx,.stl,.dae,.ply">
+        <button id="vrButton">VRモード開始</button>
+        <button id="memoButton" onclick="toggleMemoMode()">メモモード (M)</button>
+        
+        <h4>カメラ/モデル操作</h4>
+        <button id="resetButton">カメラリセット</button>
+        <button id="clearButton">モデル/メモ削除</button>
 
-    // HTMLの更新日時を表示
-    document.getElementById('updateDate').textContent = `更新: ${HTML_UPDATE_DATE}`;
+        <div style="margin-top: 10px;">
+            <label for="scaleSlider">モデル倍率</label>
+            <span id="scaleValue">倍率: 1.0x</span>
+            <input type="range" id="scaleSlider" min="0.1" max="10" step="0.1" value="1.0">
+            <div id="scaleControls">
+                <button id="scale05">0.5x</button>
+                <button id="scale1">1.0x</button>
+                <button id="scale2">2.0x</button>
+                <button id="scale5">5.0x</button>
+            </div>
+        </div>
+    </div>
 
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
-    scene.fog = new THREE.Fog(0x87CEEB, 0, 50);
+    <div id="memoPanel">
+        <h4>メモ一覧</h4>
+        <div id="memoList">メモがありません。</div>
+    </div>
 
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, PLAYER_HEIGHT, 5);
+    <div id="inputMethodDialog" class="dialog-overlay">
+        <div class="dialog-content">
+            <h4>メモ入力方法を選択</h4>
+            <button id="voiceInputBtn">音声入力</button>
+            <button id="keyboardInputBtn">キーボード入力</button>
+        </div>
+    </div>
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.xr.enabled = true;
-    document.getElementById('container').appendChild(renderer.domElement);
+    <div id="memoInputDialog" class="dialog-overlay">
+        <div class="dialog-content">
+            <h4>メモ内容入力</h4>
+            <textarea id="memoTextarea" placeholder="メモを入力してください"></textarea>
+            <button id="submitMemoBtn">登録</button>
+            <button id="cancelMemoBtn">キャンセル</button>
+        </div>
+    </div>
 
-    const vrButton = document.getElementById('vrButton');
-    if ('xr' in navigator) {
-        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
-            if (supported) {
-                vrButton.onclick = async () => {
-                    if (!renderer.xr.isPresenting) {
-                        try {
-                            const session = await navigator.xr.requestSession('immersive-vr', {
-                                optionalFeatures: ['local-floor', 'bounded-floor']
-                            });
-                            await renderer.xr.setSession(session);
-                            isVRMode = true;
-                            document.getElementById('info').style.display = 'none'; // VR開始時UI非表示
-                            document.getElementById('memoPanel').style.display = 'block'; // メモパネル表示
-                            updateStatus('VRモード起動成功');
-                        } catch (error) {
-                            console.error('VRセッション開始エラー:', error);
-                            updateStatus('VRモード起動エラー: ' + error.message);
-                        }
+    <script>
+        // ここに提供されたJavaScriptコード全体を貼り付けます
+        // ... (ここに前回の回答で提供されたJavaScriptコード全文を貼り付ける) ...
+        
+        let scene, camera, renderer;
+        let moveForward = false, moveBackward = false;
+        let moveLeft = false, moveRight = false;
+        let canJump = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+        let prevTime = performance.now();
+        let euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        let isMouseDown = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let zoomLevel = 75;
+        const MIN_FOV = 30;
+        const MAX_FOV = 100;
+        let modelScale = 1.0;
+
+        const PLAYER_HEIGHT = 1.6;
+        const MOVE_SPEED = 80.0;
+        const VR_MOVE_SPEED = 5.0;
+        const JUMP_VELOCITY = 8.0;
+        const GRAVITY = 20.0;
+
+        const statusEl = document.getElementById('status');
+        let controllers = [];
+        let isVRMode = false;
+        const INITIAL_CAMERA_POS = { x: 0, y: PLAYER_HEIGHT, z: 5 };
+        const INITIAL_ZOOM = 75;
+        let memoMode = false;
+        let memos = [];
+        let memoCounter = 0;
+        let recognition = null;
+        let isRecording = false;
+        let pendingMemoPosition = null;
+        let vrMemoMode = false;
+        let xButtonPressTime = 0;
+        let sphereMesh; // 球体のメッシュを保持するための変数
+
+        // HTMLの更新日時（手動で更新してください）
+        const HTML_UPDATE_DATE = '2025/11/05 14:26'; // 更新しました
+
+        function updateStatus(msg) {
+            statusEl.textContent = msg;
+            console.log(msg);
+        }
+
+        function init() {
+            updateStatus('初期化中...');
+
+            // HTMLの更新日時を表示
+            document.getElementById('updateDate').textContent = `更新: ${HTML_UPDATE_DATE}`;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 0, 50);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, PLAYER_HEIGHT, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.xr.enabled = true;
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            const vrButton = document.getElementById('vrButton');
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported) {
+                        vrButton.onclick = async () => {
+                            if (!renderer.xr.isPresenting) {
+                                try {
+                                    const session = await navigator.xr.requestSession('immersive-vr', {
+                                        optionalFeatures: ['local-floor', 'bounded-floor']
+                                    });
+                                    await renderer.xr.setSession(session);
+                                    isVRMode = true;
+                                    document.getElementById('info').style.display = 'none'; // VR開始時UI非表示
+                                    document.getElementById('memoPanel').style.display = 'block'; // メモパネル表示
+                                    updateStatus('VRモード起動成功');
+                                } catch (error) {
+                                    console.error('VRセッション開始エラー:', error);
+                                    updateStatus('VRモード起動エラー: ' + error.message);
+                                }
+                            }
+                        };
+                        updateStatus('VR対応デバイスを検出');
+                    } else {
+                        vrButton.disabled = true;
+                        vrButton.textContent = 'VR非対応';
+                        updateStatus('VR非対応ブラウザ');
                     }
-                };
-                updateStatus('VR対応デバイスを検出');
+                });
             } else {
                 vrButton.disabled = true;
                 vrButton.textContent = 'VR非対応';
-                updateStatus('VR非対応ブラウザ');
             }
-        });
-    } else {
-        vrButton.disabled = true;
-        vrButton.textContent = 'VR非対応';
-    }
 
-    const controller1 = renderer.xr.getController(0);
-    controller1.addEventListener('connected', (event) => {
-        updateStatus('左コントローラー接続: ' + event.data.handedness);
-        console.log('Controller 0 connected:', event.data);
-    });
-    controller1.addEventListener('disconnected', () => {
-        updateStatus('左コントローラー切断');
-    });
-    scene.add(controller1);
-    controllers.push(controller1);
+            const controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('connected', (event) => {
+                updateStatus('左コントローラー接続: ' + event.data.handedness);
+                console.log('Controller 0 connected:', event.data);
+            });
+            controller1.addEventListener('disconnected', () => {
+                updateStatus('左コントローラー切断');
+            });
+            scene.add(controller1);
+            controllers.push(controller1);
 
-    const controller2 = renderer.xr.getController(1);
-    controller2.addEventListener('connected', (event) => {
-        updateStatus('右コントローラー接続: ' + event.data.handedness);
-        console.log('Controller 1 connected:', event.data);
-    });
-    controller2.addEventListener('disconnected', () => {
-        updateStatus('右コントローラー切断');
-    });
-    scene.add(controller2);
-    controllers.push(controller2);
+            const controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('connected', (event) => {
+                updateStatus('右コントローラー接続: ' + event.data.handedness);
+                console.log('Controller 1 connected:', event.data);
+            });
+            controller2.addEventListener('disconnected', () => {
+                updateStatus('右コントローラー切断');
+            });
+            scene.add(controller2);
+            controllers.push(controller2);
 
-    // コントローラーの視覚的表現を追加
-    const controllerModelFactory = new THREE.Group();
-    const geometry = new THREE.CylinderGeometry(0.01, 0.02, 0.1, 8);
-    const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    
-    const controller1Grip = renderer.xr.getControllerGrip(0);
-    const mesh1 = new THREE.Mesh(geometry, material);
-    controller1Grip.add(mesh1);
-    scene.add(controller1Grip);
+            // コントローラーの視覚的表現を追加
+            const controllerModelFactory = new THREE.Group();
+            const geometry = new THREE.CylinderGeometry(0.01, 0.02, 0.1, 8);
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            
+            const controller1Grip = renderer.xr.getControllerGrip(0);
+            const mesh1 = new THREE.Mesh(geometry, material);
+            controller1Grip.add(mesh1);
+            scene.add(controller1Grip);
 
-    const controller2Grip = renderer.xr.getControllerGrip(1);
-    const mesh2 = new THREE.Mesh(geometry, material.clone());
-    mesh2.material.color.set(0x0000ff);
-    controller2Grip.add(mesh2);
-    scene.add(controller2Grip);
-    
-    // VRセッション終了時の処理を追加
-    renderer.xr.addEventListener('sessionend', () => {
-        isVRMode = false;
-        document.getElementById('info').style.display = 'block';
-        document.getElementById('memoPanel').style.display = 'none';
-        updateStatus('VRモード終了');
-    });
+            const controller2Grip = renderer.xr.getControllerGrip(1);
+            const mesh2 = new THREE.Mesh(geometry, material.clone());
+            mesh2.material.color.set(0x0000ff);
+            controller2Grip.add(mesh2);
+            scene.add(controller2Grip);
+            
+            // VRセッション終了時の処理を追加
+            renderer.xr.addEventListener('sessionend', () => {
+                isVRMode = false;
+                document.getElementById('info').style.display = 'block';
+                document.getElementById('memoPanel').style.display = 'none';
+                updateStatus('VRモード終了');
+            });
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 5);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
 
-    const floorGeometry = new THREE.PlaneGeometry(50, 50);
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
+            const floorGeometry = new THREE.PlaneGeometry(50, 50);
+            const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
 
-    // 直径1mの球 (デバッグ対象)
-    const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-    const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x4ecdc4 });
-    sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial); // 変数に保持
-    sphereMesh.position.set(0, 0.5, -3);
-    sphereMesh.castShadow = true;
-    sphereMesh.receiveShadow = true;
-    scene.add(sphereMesh);
+            // 直径1mの球 (デバッグ対象)
+            const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+            const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x4ecdc4 });
+            sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial); // 変数に保持
+            sphereMesh.position.set(0, 0.5, -3);
+            sphereMesh.castShadow = true;
+            sphereMesh.receiveShadow = true;
+            scene.add(sphereMesh);
 
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
-    
-    const container = document.getElementById('container');
-    container.addEventListener('mousedown', onMouseDown);
-    container.addEventListener('mousemove', onMouseMove);
-    container.addEventListener('mouseup', onMouseUp);
-    container.addEventListener('mouseleave', onMouseUp);
-    container.addEventListener('wheel', onMouseWheel);
-    
-    document.getElementById('fileInput').addEventListener('change', onFileSelect);
-    document.getElementById('resetButton').addEventListener('click', resetCamera);
-    document.getElementById('clearButton').addEventListener('click', clearModel);
-    document.getElementById('scaleSlider').addEventListener('input', onScaleChange);
-    document.getElementById('scale05').addEventListener('click', () => setScale(0.5));
-    document.getElementById('scale1').addEventListener('click', () => setScale(1.0));
-    document.getElementById('scale2').addEventListener('click', () => setScale(2.0));
-    document.getElementById('scale5').addEventListener('click', () => setScale(5.0));
-    document.getElementById('voiceButton').addEventListener('click', toggleVoiceInput);
-    document.getElementById('voiceInputBtn').addEventListener('click', chooseVoiceInput);
-    document.getElementById('keyboardInputBtn').addEventListener('click', chooseKeyboardInput);
-    document.getElementById('submitMemoBtn').addEventListener('click', submitMemo);
-    document.getElementById('cancelMemoBtn').addEventListener('click', cancelMemoInput);
-    
-    window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            
+            const container = document.getElementById('container');
+            container.addEventListener('mousedown', onMouseDown);
+            container.addEventListener('mousemove', onMouseMove);
+            container.addEventListener('mouseup', onMouseUp);
+            container.addEventListener('mouseleave', onMouseUp);
+            container.addEventListener('wheel', onMouseWheel);
+            
+            document.getElementById('fileInput').addEventListener('change', onFileSelect);
+            document.getElementById('resetButton').addEventListener('click', resetCamera);
+            document.getElementById('clearButton').addEventListener('click', clearModel);
+            document.getElementById('scaleSlider').addEventListener('input', onScaleChange);
+            document.getElementById('scale05').addEventListener('click', () => setScale(0.5));
+            document.getElementById('scale1').addEventListener('click', () => setScale(1.0));
+            document.getElementById('scale2').addEventListener('click', () => setScale(2.0));
+            document.getElementById('scale5').addEventListener('click', () => setScale(5.0));
+            document.getElementById('voiceButton').addEventListener('click', toggleVoiceInput);
+            document.getElementById('voiceInputBtn').addEventListener('click', chooseVoiceInput);
+            document.getElementById('keyboardInputBtn').addEventListener('click', chooseKeyboardInput);
+            document.getElementById('submitMemoBtn').addEventListener('click', submitMemo);
+            document.getElementById('cancelMemoBtn').addEventListener('click', cancelMemoInput);
+            
+            window.addEventListener('resize', onWindowResize);
 
-    initSpeechRecognition();
+            initSpeechRecognition();
 
-    updateStatus('準備完了 - GLBファイルを選択してください');
-    renderer.setAnimationLoop(animate);
-}
+            updateStatus('準備完了 - GLBファイルを選択してください');
+            renderer.setAnimationLoop(animate);
+        }
 
-function onFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+        function onFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-    const fileName = file.name.toLowerCase();
-    const fileExtension = fileName.split('.').pop();
+            const fileName = file.name.toLowerCase();
+            const fileExtension = fileName.split('.').pop();
 
-    updateStatus(`ファイル読み込み中: ${file.name}`);
-    document.getElementById('loading').style.display = 'block';
+            updateStatus(`ファイル読み込み中: ${file.name}`);
+            document.getElementById('loading').style.display = 'block';
 
-    const reader = new FileReader();
-    reader.onload = e => {
-        const arrayBuffer = e.target.result;
-        
-        switch(fileExtension) {
-            case 'glb':
-            case 'gltf':
-                loadGLTF(arrayBuffer);
-                break;
-            case 'obj':
-                loadOBJ(arrayBuffer);
-                break;
-            case 'fbx':
-                loadFBX(arrayBuffer);
-                break;
-            case 'stl':
-                loadSTL(arrayBuffer);
-                break;
-            case 'dae':
-                loadCollada(arrayBuffer);
-                break;
-            case 'ply':
-                loadPLY(arrayBuffer);
-                break;
-            default:
-                updateStatus('対応していないファイル形式です');
+            const reader = new FileReader();
+            reader.onload = e => {
+                const arrayBuffer = e.target.result;
+                
+                switch(fileExtension) {
+                    case 'glb':
+                    case 'gltf':
+                        loadGLTF(arrayBuffer);
+                        break;
+                    case 'obj':
+                        loadOBJ(arrayBuffer);
+                        break;
+                    case 'fbx':
+                        loadFBX(arrayBuffer);
+                        break;
+                    case 'stl':
+                        loadSTL(arrayBuffer);
+                        break;
+                    case 'dae':
+                        loadCollada(arrayBuffer);
+                        break;
+                    case 'ply':
+                        loadPLY(arrayBuffer);
+                        break;
+                    default:
+                        updateStatus('対応していないファイル形式です');
+                        document.getElementById('loading').style.display = 'none';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function loadGLTF(arrayBuffer) {
+            const loader = new THREE.GLTFLoader();
+            
+            loader.parse(arrayBuffer, '', gltf => {
+                addModelToScene(gltf.scene, 'GLTF');
+            }, error => {
+                console.error('GLTF読み込みエラー:', error);
+                updateStatus('GLTF読み込みエラー');
                 document.getElementById('loading').style.display = 'none';
+            });
         }
-    };
-    reader.readAsArrayBuffer(file);
-}
 
-function loadGLTF(arrayBuffer) {
-    const loader = new THREE.GLTFLoader();
-    
-    loader.parse(arrayBuffer, '', gltf => {
-        addModelToScene(gltf.scene, 'GLTF');
-    }, error => {
-        console.error('GLTF読み込みエラー:', error);
-        updateStatus('GLTF読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    });
-}
-
-function loadOBJ(arrayBuffer) {
-    const loader = new THREE.OBJLoader();
-    const text = new TextDecoder('utf-8').decode(arrayBuffer);
-    
-    try {
-        const object = loader.parse(text);
-        addModelToScene(object, 'OBJ');
-    } catch (error) {
-        updateStatus('OBJ読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-function loadFBX(arrayBuffer) {
-    const manager = new THREE.LoadingManager();
-    const loader = new THREE.FBXLoader(manager);
-    
-    try {
-        const object = loader.parse(arrayBuffer);
-        addModelToScene(object, 'FBX');
-    } catch (error) {
-        updateStatus('FBX読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-function loadSTL(arrayBuffer) {
-    const loader = new THREE.STLLoader();
-    
-    try {
-        const geometry = loader.parse(arrayBuffer);
-        const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
-        const mesh = new THREE.Mesh(geometry, material);
-        addModelToScene(mesh, 'STL');
-    } catch (error) {
-        updateStatus('STL読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-function loadCollada(arrayBuffer) {
-    const loader = new THREE.ColladaLoader();
-    const text = new TextDecoder('utf-8').decode(arrayBuffer);
-    
-    try {
-        const collada = loader.parse(text);
-        addModelToScene(collada.scene, 'DAE');
-    } catch (error) {
-        updateStatus('Collada読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-function loadPLY(arrayBuffer) {
-    const loader = new THREE.PLYLoader();
-    
-    try {
-        const geometry = loader.parse(arrayBuffer);
-        geometry.computeVertexNormals();
-        const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
-        const mesh = new THREE.Mesh(geometry, material);
-        addModelToScene(mesh, 'PLY');
-    } catch (error) {
-        updateStatus('PLY読み込みエラー');
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-function addModelToScene(model, format) {
-    const oldModel = scene.getObjectByName('loadedModel');
-    if (oldModel) scene.remove(oldModel);
-
-    model.name = 'loadedModel';
-    
-    model.traverse(node => {
-        if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
-            if (!node.material) {
-                node.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+        function loadOBJ(arrayBuffer) {
+            const loader = new THREE.OBJLoader();
+            const text = new TextDecoder('utf-8').decode(arrayBuffer);
+            
+            try {
+                const object = loader.parse(text);
+                addModelToScene(object, 'OBJ');
+            } catch (error) {
+                updateStatus('OBJ読み込みエラー');
+                document.getElementById('loading').style.display = 'none';
             }
         }
-    });
 
-    const box = new THREE.Box3().setFromObject(model);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-
-    model.position.x = -center.x;
-    model.position.z = -center.z;
-    model.position.y = -box.min.y;
-
-    scene.add(model);
-    
-    updateStatus(`${format}モデル読み込み完了! サイズ: ${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)}`);
-    document.getElementById('loading').style.display = 'none';
-
-    camera.position.set(0, PLAYER_HEIGHT, size.z * 0.5 + 3);
-}
-
-function onKeyDown(event) {
-    if (document.getElementById('memoInputDialog').style.display === 'block') return;
-    
-    switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-            moveForward = true;
-            break;
-        case 'ArrowDown':
-        case 'KeyS':
-            moveBackward = true;
-            break;
-        case 'ArrowLeft':
-        case 'KeyA':
-            moveLeft = true;
-            break;
-        case 'ArrowRight':
-        case 'KeyD':
-            moveRight = true;
-            break;
-        case 'Space':
-            if (canJump) velocity.y += JUMP_VELOCITY;
-            canJump = false;
-            break;
-        case 'KeyQ':
-            zoomIn();
-            break;
-        case 'KeyE':
-            zoomOut();
-            break;
-        case 'KeyM':
-            toggleMemoMode();
-            break;
-    }
-}
-
-function onKeyUp(event) {
-    if (document.getElementById('memoInputDialog').style.display === 'block') return;
-    
-    switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-            moveForward = false;
-            break;
-        case 'ArrowDown':
-        case 'KeyS':
-            moveBackward = false;
-            break;
-        case 'ArrowLeft':
-        case 'KeyA':
-            moveLeft = false;
-            break;
-        case 'ArrowRight':
-        case 'KeyD':
-            moveRight = false;
-            break;
-    }
-}
-
-function onMouseDown(event) {
-    if (document.getElementById('inputMethodDialog').style.display === 'block' || 
-        document.getElementById('memoInputDialog').style.display === 'block') {
-        return;
-    }
-
-    if (memoMode && event.button === 0) {
-        placeMemo(event);
-        return;
-    }
-    isMouseDown = true;
-    lastMouseX = event.clientX;
-    lastMouseY = event.clientY;
-}
-
-function onMouseUp() {
-    isMouseDown = false;
-}
-
-function onMouseMove(event) {
-    if (!isMouseDown) return;
-
-    const deltaX = event.clientX - lastMouseX;
-    const deltaY = event.clientY - lastMouseY;
-
-    lastMouseX = event.clientX;
-    lastMouseY = event.clientY;
-
-    euler.setFromQuaternion(camera.quaternion);
-    euler.y -= deltaX * 0.002;
-    euler.x -= deltaY * 0.002;
-    // 上下方向の回転を制限
-    euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
-
-    camera.quaternion.setFromEuler(euler);
-}
-
-function onMouseWheel(event) {
-    event.preventDefault();
-    if (event.deltaY > 0) {
-        zoomOut();
-    } else {
-        zoomIn();
-    }
-}
-
-function zoomIn() {
-    zoomLevel = Math.max(MIN_FOV, zoomLevel - 5);
-    camera.fov = zoomLevel;
-    camera.updateProjectionMatrix();
-}
-
-function zoomOut() {
-    zoomLevel = Math.min(MAX_FOV, zoomLevel + 5);
-    camera.fov = zoomLevel;
-    camera.updateProjectionMatrix();
-}
-
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function resetCamera() {
-    camera.position.set(INITIAL_CAMERA_POS.x, INITIAL_CAMERA_POS.y, INITIAL_CAMERA_POS.z);
-    camera.rotation.set(0, 0, 0);
-    camera.fov = INITIAL_ZOOM;
-    camera.updateProjectionMatrix();
-    zoomLevel = INITIAL_ZOOM;
-    updateStatus('カメラ位置をリセットしました');
-}
-
-function clearModel() {
-    const model = scene.getObjectByName('loadedModel');
-    if (model) {
-        scene.remove(model);
-        updateStatus('3Dモデルを削除しました');
-    } else {
-        updateStatus('削除するモデルがありません');
-    }
-    memos.forEach(memo => scene.remove(memo.mesh));
-    memos = [];
-    document.getElementById('memoList').innerHTML = '';
-}
-
-function onScaleChange(event) {
-    setScale(parseFloat(event.target.value));
-}
-
-function setScale(scale) {
-    modelScale = scale;
-    document.getElementById('scaleValue').textContent = `倍率: ${modelScale.toFixed(1)}x`;
-    document.getElementById('scaleSlider').value = modelScale;
-
-    const model = scene.getObjectByName('loadedModel');
-    if (model) {
-        model.scale.set(modelScale, modelScale, modelScale);
-    }
-}
-
-function animate(time) {
-    const delta = (time - prevTime) / 1000;
-    prevTime = time;
-
-    if (isVRMode) {
-        handleVRMovement(delta);
-        handleVRInputs();
-    }
-    
-    // VRモードかどうかに関わらずPC/ブラウザ操作を処理
-    handlePCMovement(delta);
-    
-    renderer.render(scene, camera);
-}
-
-function handlePCMovement(delta) {
-    // ----------------------------------------------------
-    // 🛠️ 修正点 2: コントローラー入力をPCモードのフラグに反映
-    // ----------------------------------------------------
-    moveForward = false;
-    moveBackward = false;
-    moveLeft = false;
-    moveRight = false;
-    
-    let isControllerActive = false;
-    const speed = MOVE_SPEED;
-
-    // Gamepad APIからコントローラーの状態を取得
-    // 左右どちらか、または両方のコントローラーをチェック
-    for (const controller of controllers) {
-        if (controller && controller.userData.gamepad) {
-            const gamepad = controller.userData.gamepad;
+        function loadFBX(arrayBuffer) {
+            const manager = new THREE.LoadingManager();
+            const loader = new THREE.FBXLoader(manager);
             
-            // Meta Questで一般的な左スティックの軸 [0] (X) と [1] (Y) を使用
-            // VRセッション外ではGamepad APIのaxesのインデックスが変わる可能性があるため、
-            // 広範囲にチェックできるようにします（ここではQuest向けに[0][1]を優先）
-            const axisX = gamepad.axes[0] || gamepad.axes[2];
-            const axisY = gamepad.axes[1] || gamepad.axes[3];
-            
-            const threshold = 0.15; // スティックの遊びを無視する閾値
-
-            if (Math.abs(axisY) > threshold) {
-                if (axisY < 0) moveForward = true; // 前進
-                if (axisY > 0) moveBackward = true; // 後退
-                isControllerActive = true;
-            }
-            if (Math.abs(axisX) > threshold) {
-                if (axisX < 0) moveLeft = true; // 左移動
-                if (axisX > 0) moveRight = true; // 右移動
-                isControllerActive = true;
-            }
-            
-            // ズームイン/アウト (トリガー/グリップ)
-            // 右トリガー (buttons[1]) でズームイン、右グリップ (buttons[2]) でズームアウトを想定
-            if (controller === controllers[1] && gamepad.buttons[1].pressed) {
-                 zoomIn();
-            }
-            if (controller === controllers[1] && gamepad.buttons[2].pressed) {
-                 zoomOut();
+            try {
+                const object = loader.parse(arrayBuffer);
+                addModelToScene(object, 'FBX');
+            } catch (error) {
+                updateStatus('FBX読み込みエラー');
+                document.getElementById('loading').style.display = 'none';
             }
         }
-    }
-    
-    // キーボード入力もチェックし、moveXxxフラグを更新（onKeyDown/onKeyUpで既に更新済みのため、ここではスキップ）
-    // PCモードでは、onKeyDown/onKeyUpイベントリスナーが moveForward などを管理しているため、
-    // ここで上書きしないように注意が必要ですが、ここではコントローラー操作を優先するために上書きしています。
-    // 理想的には、キーボードの状態とコントローラーの状態をORで結合する必要があります。
-    // 今回は簡易化のため、キーボードイベントでセットされたmoveXxxをそのまま利用し、コントローラーでセットされたものと結合します。
 
-    // キーボード入力で設定された moveXxx フラグは onKeyDown/onKeyUp で設定された状態を保持。
-    
-    // ----------------------------------------------------
-    // 既存のPC移動ロジック
-    // ----------------------------------------------------
-    
-    // PC/ブラウザモード時の重力と床判定
-    velocity.y -= GRAVITY * delta;
-    
-    // 移動 (キーボードまたはコントローラーで設定された moveXxx フラグを使用)
-    direction.z = Number(moveForward) - Number(moveBackward);
-    direction.x = Number(moveRight) - Number(moveLeft);
-    direction.normalize(); 
-
-    if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
-    if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
-
-    // 摩擦と減速
-    velocity.x *= (1 - 0.1 * delta * 5);
-    velocity.z *= (1 - 0.1 * delta * 5);
-    
-    // カメラの現在の方向を考慮して移動ベクトルを回転
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0; // 水平方向のみ
-    cameraDirection.normalize();
-
-    const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
-
-    // 移動速度をカメラの向きに合わせて適用
-    if (moveForward || moveBackward) {
-        camera.position.addScaledVector(cameraDirection, velocity.z * delta);
-    }
-    if (moveLeft || moveRight) {
-        camera.position.addScaledVector(rightVector, velocity.x * delta);
-    }
-
-    camera.position.y += velocity.y * delta;
-
-    if (camera.position.y < PLAYER_HEIGHT) {
-        velocity.y = 0;
-        camera.position.y = PLAYER_HEIGHT;
-        canJump = true;
-    }
-
-    // 速度を減衰させる
-    velocity.x -= velocity.x * 10.0 * delta;
-    velocity.z -= velocity.z * 10.0 * delta;
-    
-    // ⚠️ 重要なデバッグ: Aボタンの反応をブラウザモードでもチェック
-    if (controllers[1] && controllers[1].userData.gamepad) {
-        const gamepad2 = controllers[1].userData.gamepad;
-        // Aボタンは通常 gamepad.buttons[4]
-        const aButtonPressed = gamepad2.buttons[4].pressed;
-        
-        if (aButtonPressed) {
-            if (sphereMesh && sphereMesh.material.color.getHex() !== 0xff0000) {
-                sphereMesh.material.color.set(0xff0000);
-            }
-        } else {
-            if (sphereMesh && sphereMesh.material.color.getHex() !== 0x4ecdc4) {
-                sphereMesh.material.color.set(0x4ecdc4);
+        function loadSTL(arrayBuffer) {
+            const loader = new THREE.STLLoader();
+            
+            try {
+                const geometry = loader.parse(arrayBuffer);
+                const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                const mesh = new THREE.Mesh(geometry, material);
+                addModelToScene(mesh, 'STL');
+            } catch (error) {
+                updateStatus('STL読み込みエラー');
+                document.getElementById('loading').style.display = 'none';
             }
         }
-    }
-}
 
-function handleVRMovement(delta) {
-    // VRモード専用のロジック（トラッキングされたカメラの動きを基準とした移動）
-    
-    let controllerToUse;
-    
-    if (controllers[0] && controllers[0].userData.gamepad) {
-        controllerToUse = controllers[0];
-    } else if (controllers[1] && controllers[1].userData.gamepad) {
-        controllerToUse = controllers[1]; 
-    }
-
-    if (controllerToUse) {
-        const gamepad = controllerToUse.userData.gamepad;
-        
-        // Questの左スティックの軸 [0] (X) と [1] (Y) を使用
-        const axisX = gamepad.axes[0] || gamepad.axes[2];
-        const axisY = gamepad.axes[1] || gamepad.axes[3]; 
-        
-        const speed = VR_MOVE_SPEED;
-        const moveVector = new THREE.Vector3();
-        const threshold = 0.15;
-
-        if (Math.abs(axisY) > threshold) {
-            moveVector.z = -axisY * speed * delta;
-        }
-        
-        if (Math.abs(axisX) > threshold) {
-            moveVector.x = axisX * speed * delta;
+        function loadCollada(arrayBuffer) {
+            const loader = new THREE.ColladaLoader();
+            const text = new TextDecoder('utf-8').decode(arrayBuffer);
+            
+            try {
+                const collada = loader.parse(text);
+                addModelToScene(collada.scene, 'DAE');
+            } catch (error) {
+                updateStatus('Collada読み込みエラー');
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
-        if (moveVector.length() > 0) {
+        function loadPLY(arrayBuffer) {
+            const loader = new THREE.PLYLoader();
             
-            // 視線方向を取得（水平方向のみ）
-            const rotationMatrix = new THREE.Matrix4();
-            rotationMatrix.extractRotation(controllerToUse.matrixWorld);
-            
-            const worldForward = new THREE.Vector3(0, 0, -1).applyMatrix4(rotationMatrix);
-            worldForward.y = 0; 
-            worldForward.normalize();
-            
-            const worldRight = new THREE.Vector3(1, 0, 0).applyMatrix4(rotationMatrix);
-            worldRight.y = 0; 
-            worldRight.normalize();
-
-            // 前後移動
-            camera.position.addScaledVector(worldForward, moveVector.z * 10); 
-            // 左右移動
-            camera.position.addScaledVector(worldRight, moveVector.x * 10);
+            try {
+                const geometry = loader.parse(arrayBuffer);
+                geometry.computeVertexNormals();
+                const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                const mesh = new THREE.Mesh(geometry, material);
+                addModelToScene(mesh, 'PLY');
+            } catch (error) {
+                updateStatus('PLY読み込みエラー');
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
-        // 上昇/下降 (右コントローラーのA/Bボタン)
-        if (controllers[1] && controllers[1].userData.gamepad) {
-            const gamepad2 = controllers[1].userData.gamepad;
+        function addModelToScene(model, format) {
+            const oldModel = scene.getObjectByName('loadedModel');
+            if (oldModel) scene.remove(oldModel);
+
+            model.name = 'loadedModel';
             
-            // 上昇 (Aボタン: buttons[4])
-            if (gamepad2.buttons[4].pressed) {
-                camera.position.y += speed * delta;
-            } 
+            model.traverse(node => {
+                if (node.isMesh) {
+                    node.castShadow = true;
+                    node.receiveShadow = true;
+                    if (!node.material) {
+                        node.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+                    }
+                }
+            });
+
+            const box = new THREE.Box3().setFromObject(model);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            model.position.x = -center.x;
+            model.position.z = -center.z;
+            model.position.y = -box.min.y;
+
+            scene.add(model);
             
-            // 下降 (Bボタン: buttons[5])
-            if (gamepad2.buttons[5].pressed) {
-                camera.position.y -= speed * delta;
-            } 
+            updateStatus(`${format}モデル読み込み完了! サイズ: ${size.x.toFixed(1)}x${size.y.toFixed(1)}x${size.z.toFixed(1)}`);
+            document.getElementById('loading').style.display = 'none';
+
+            camera.position.set(0, PLAYER_HEIGHT, size.z * 0.5 + 3);
         }
 
-        if (camera.position.y < PLAYER_HEIGHT) {
-            camera.position.y = PLAYER_HEIGHT;
-        }
-    }
-}
-
-function handleVRInputs() {
-    // VRモード専用の入力処理（メモモード切替、メモ配置など）
-    const controller2 = controllers[1]; // 右
-    
-    if (controller2 && controller2.userData.gamepad) {
-        const gamepad2 = controller2.userData.gamepad;
-        
-        // Aボタンのデバッグ機能は handlePCMovement に移動しましたが、VR時もここで実行しても問題ありません。
-        
-        // VRメモモードの切り替え (Xボタン長押し) - Xボタンは通常 gamepad.buttons[2]
-        const xButtonPressed = gamepad2.buttons[2].pressed;
-
-        if (xButtonPressed) {
-            if (xButtonPressTime === 0) {
-                xButtonPressTime = performance.now();
-            } else if (performance.now() - xButtonPressTime > 1000) { // 1秒長押し
-                if (!vrMemoMode) {
+        function onKeyDown(event) {
+            if (document.getElementById('memoInputDialog').style.display === 'block') return;
+            
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = true;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = true;
+                    break;
+                case 'Space':
+                    if (canJump) velocity.y += JUMP_VELOCITY;
+                    canJump = false;
+                    break;
+                case 'KeyQ':
+                    zoomIn();
+                    break;
+                case 'KeyE':
+                    zoomOut();
+                    break;
+                case 'KeyM':
                     toggleMemoMode();
-                    vrMemoMode = true;
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            if (document.getElementById('memoInputDialog').style.display === 'block') return;
+            
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = false;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = false;
+                    break;
+            }
+        }
+
+        function onMouseDown(event) {
+            if (document.getElementById('inputMethodDialog').style.display === 'block' || 
+                document.getElementById('memoInputDialog').style.display === 'block') {
+                return;
+            }
+
+            if (memoMode && event.button === 0) {
+                placeMemo(event);
+                return;
+            }
+            isMouseDown = true;
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+        }
+
+        function onMouseUp() {
+            isMouseDown = false;
+        }
+
+        function onMouseMove(event) {
+            if (!isMouseDown) return;
+
+            const deltaX = event.clientX - lastMouseX;
+            const deltaY = event.clientY - lastMouseY;
+
+            lastMouseX = event.clientX;
+            lastMouseY = event.clientY;
+
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= deltaX * 0.002;
+            euler.x -= deltaY * 0.002;
+            // 上下方向の回転を制限
+            euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.x));
+
+            camera.quaternion.setFromEuler(euler);
+        }
+
+        function onMouseWheel(event) {
+            event.preventDefault();
+            if (event.deltaY > 0) {
+                zoomOut();
+            } else {
+                zoomIn();
+            }
+        }
+
+        function zoomIn() {
+            zoomLevel = Math.max(MIN_FOV, zoomLevel - 5);
+            camera.fov = zoomLevel;
+            camera.updateProjectionMatrix();
+        }
+
+        function zoomOut() {
+            zoomLevel = Math.min(MAX_FOV, zoomLevel + 5);
+            camera.fov = zoomLevel;
+            camera.updateProjectionMatrix();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function resetCamera() {
+            camera.position.set(INITIAL_CAMERA_POS.x, INITIAL_CAMERA_POS.y, INITIAL_CAMERA_POS.z);
+            camera.rotation.set(0, 0, 0);
+            camera.fov = INITIAL_ZOOM;
+            camera.updateProjectionMatrix();
+            zoomLevel = INITIAL_ZOOM;
+            updateStatus('カメラ位置をリセットしました');
+        }
+
+        function clearModel() {
+            const model = scene.getObjectByName('loadedModel');
+            if (model) {
+                scene.remove(model);
+                updateStatus('3Dモデルを削除しました');
+            } else {
+                updateStatus('削除するモデルがありません');
+            }
+            memos.forEach(memo => scene.remove(memo.mesh));
+            memos = [];
+            document.getElementById('memoList').innerHTML = '';
+        }
+
+        function onScaleChange(event) {
+            setScale(parseFloat(event.target.value));
+        }
+
+        function setScale(scale) {
+            modelScale = scale;
+            document.getElementById('scaleValue').textContent = `倍率: ${modelScale.toFixed(1)}x`;
+            document.getElementById('scaleSlider').value = modelScale;
+
+            const model = scene.getObjectByName('loadedModel');
+            if (model) {
+                model.scale.set(modelScale, modelScale, modelScale);
+            }
+        }
+
+        function animate(time) {
+            const delta = (time - prevTime) / 1000;
+            prevTime = time;
+
+            if (isVRMode) {
+                handleVRMovement(delta);
+                handleVRInputs();
+            }
+            
+            // VRモードかどうかに関わらずPC/ブラウザ操作を処理
+            handlePCMovement(delta);
+            
+            renderer.render(scene, camera);
+        }
+
+        function handlePCMovement(delta) {
+            // ----------------------------------------------------
+            // 🛠️ 修正点 2: コントローラー入力をPCモードのフラグに反映
+            // ----------------------------------------------------
+            
+            // キーボードの状態は onKeyDown/onKeyUp で設定された状態を保持。
+            // ここではコントローラーの状態を読み取り、キーボードと組み合わせる。
+            
+            let controllerMoveForward = false;
+            let controllerMoveBackward = false;
+            let controllerMoveLeft = false;
+            let controllerMoveRight = false;
+
+            const speed = MOVE_SPEED;
+
+            // Gamepad APIからコントローラーの状態を取得
+            for (const controller of controllers) {
+                if (controller && controller.userData.gamepad) {
+                    const gamepad = controller.userData.gamepad;
+                    
+                    // Meta Questで一般的な左スティックの軸 [0] (X) と [1] (Y) を使用
+                    const axisX = gamepad.axes[0] || gamepad.axes[2];
+                    const axisY = gamepad.axes[1] || gamepad.axes[3];
+                    
+                    const threshold = 0.15; // スティックの遊びを無視する閾値
+
+                    if (Math.abs(axisY) > threshold) {
+                        if (axisY < 0) controllerMoveForward = true; 
+                        if (axisY > 0) controllerMoveBackward = true; 
+                    }
+                    if (Math.abs(axisX) > threshold) {
+                        if (axisX < 0) controllerMoveLeft = true; 
+                        if (axisX > 0) controllerMoveRight = true; 
+                    }
+                    
+                    // ズームイン/アウト (右コントローラーのトリガー/グリップ)
+                    if (controller === controllers[1]) {
+                        // 右トリガー (buttons[1]) でズームインを想定
+                        if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
+                            zoomIn();
+                        }
+                        // 右グリップ (buttons[2]またはbuttons[3]を試す) でズームアウトを想定
+                        if (gamepad.buttons[2] && gamepad.buttons[2].pressed) {
+                            zoomOut();
+                        }
+                    }
                 }
             }
-        } else {
-            xButtonPressTime = 0;
-            // vrMemoMode がONのままになるのは問題ない (Mキーか再長押しでOFF)
+            
+            // キーボードとコントローラーの入力をORで結合
+            const finalMoveForward = moveForward || controllerMoveForward;
+            const finalMoveBackward = moveBackward || controllerMoveBackward;
+            const finalMoveLeft = moveLeft || controllerMoveLeft;
+            const finalMoveRight = moveRight || controllerMoveRight;
+
+
+            // ----------------------------------------------------
+            // 既存のPC移動ロジック
+            // ----------------------------------------------------
+            
+            // PC/ブラウザモード時の重力と床判定
+            velocity.y -= GRAVITY * delta;
+            
+            // 移動 (結合された moveXxx フラグを使用)
+            direction.z = Number(finalMoveForward) - Number(finalMoveBackward);
+            direction.x = Number(finalMoveRight) - Number(finalMoveLeft);
+            direction.normalize(); 
+
+            if (finalMoveForward || finalMoveBackward) velocity.z -= direction.z * speed * delta;
+            if (finalMoveLeft || finalMoveRight) velocity.x -= direction.x * speed * delta;
+
+            // 摩擦と減速
+            velocity.x *= (1 - 0.1 * delta * 5);
+            velocity.z *= (1 - 0.1 * delta * 5);
+            
+            // カメラの現在の方向を考慮して移動ベクトルを回転
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            cameraDirection.y = 0; // 水平方向のみ
+            cameraDirection.normalize();
+
+            const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+
+            // 移動速度をカメラの向きに合わせて適用
+            if (finalMoveForward || finalMoveBackward) {
+                camera.position.addScaledVector(cameraDirection, velocity.z * delta);
+            }
+            if (finalMoveLeft || finalMoveRight) {
+                camera.position.addScaledVector(rightVector, velocity.x * delta);
+            }
+
+            camera.position.y += velocity.y * delta;
+
+            if (camera.position.y < PLAYER_HEIGHT) {
+                velocity.y = 0;
+                camera.position.y = PLAYER_HEIGHT;
+                canJump = true;
+            }
+
+            // 速度を減衰させる
+            velocity.x -= velocity.x * 10.0 * delta;
+            velocity.z -= velocity.z * 10.0 * delta;
+            
+            // ⚠️ 重要なデバッグ: Aボタンの反応をブラウザモードでもチェック
+            if (controllers[1] && controllers[1].userData.gamepad) {
+                const gamepad2 = controllers[1].userData.gamepad;
+                // Aボタンは通常 gamepad.buttons[4]
+                const aButtonPressed = gamepad2.buttons[4] && gamepad2.buttons[4].pressed;
+                
+                if (aButtonPressed) {
+                    if (sphereMesh && sphereMesh.material.color.getHex() !== 0xff0000) {
+                        sphereMesh.material.color.set(0xff0000);
+                    }
+                } else {
+                    if (sphereMesh && sphereMesh.material.color.getHex() !== 0x4ecdc4) {
+                        sphereMesh.material.color.set(0x4ecdc4);
+                    }
+                }
+            }
         }
-        
-        // メモ配置 (メモモード中、右トリガー) - 右トリガーは通常 gamepad.buttons[1]
-        const rightTriggerPressed = gamepad2.buttons[1].pressed;
-        if (vrMemoMode && memoMode && rightTriggerPressed && !controller2.userData.memoPlaced) {
-            placeVRMemo(controller2);
-            controller2.userData.memoPlaced = true;
-        } else if (!rightTriggerPressed) {
-            controller2.userData.memoPlaced = false;
+
+        function handleVRMovement(delta) {
+            // VRモード専用のロジック
+            
+            let controllerToUse;
+            
+            if (controllers[0] && controllers[0].userData.gamepad) {
+                controllerToUse = controllers[0];
+            } else if (controllers[1] && controllers[1].userData.gamepad) {
+                controllerToUse = controllers[1]; 
+            }
+
+            if (controllerToUse) {
+                const gamepad = controllerToUse.userData.gamepad;
+                
+                // Questの左スティックの軸 [0] (X) と [1] (Y) を使用
+                const axisX = gamepad.axes[0] || gamepad.axes[2];
+                const axisY = gamepad.axes[1] || gamepad.axes[3]; 
+                
+                const speed = VR_MOVE_SPEED;
+                const moveVector = new THREE.Vector3();
+                const threshold = 0.15;
+
+                if (Math.abs(axisY) > threshold) {
+                    moveVector.z = -axisY * speed * delta;
+                }
+                
+                if (Math.abs(axisX) > threshold) {
+                    moveVector.x = axisX * speed * delta;
+                }
+
+                if (moveVector.length() > 0) {
+                    
+                    // 視線方向を取得（水平方向のみ）
+                    const rotationMatrix = new THREE.Matrix4();
+                    rotationMatrix.extractRotation(controllerToUse.matrixWorld);
+                    
+                    const worldForward = new THREE.Vector3(0, 0, -1).applyMatrix4(rotationMatrix);
+                    worldForward.y = 0; 
+                    worldForward.normalize();
+                    
+                    const worldRight = new THREE.Vector3(1, 0, 0).applyMatrix4(rotationMatrix);
+                    worldRight.y = 0; 
+                    worldRight.normalize();
+
+                    // 前後移動
+                    camera.position.addScaledVector(worldForward, moveVector.z * 10); 
+                    // 左右移動
+                    camera.position.addScaledVector(worldRight, moveVector.x * 10);
+                }
+
+                // 上昇/下降 (右コントローラーのA/Bボタン)
+                if (controllers[1] && controllers[1].userData.gamepad) {
+                    const gamepad2 = controllers[1].userData.gamepad;
+                    
+                    // 上昇 (Aボタン: buttons[4])
+                    if (gamepad2.buttons[4] && gamepad2.buttons[4].pressed) {
+                        camera.position.y += speed * delta;
+                    } 
+                    
+                    // 下降 (Bボタン: buttons[5])
+                    if (gamepad2.buttons[5] && gamepad2.buttons[5].pressed) {
+                        camera.position.y -= speed * delta;
+                    } 
+                }
+
+                if (camera.position.y < PLAYER_HEIGHT) {
+                    camera.position.y = PLAYER_HEIGHT;
+                }
+            }
         }
-    }
-}
 
-function placeVRMemo(controller) {
-    const raycaster = new THREE.Raycaster();
-    const tempMatrix = new THREE.Matrix4();
-    tempMatrix.identity().extractRotation(controller.matrixWorld);
+        function handleVRInputs() {
+            // VRモード専用の入力処理（メモモード切替、メモ配置など）
+            const controller2 = controllers[1]; // 右
+            
+            if (controller2 && controller2.userData.gamepad) {
+                const gamepad2 = controller2.userData.gamepad;
+                
+                // VRメモモードの切り替え (Xボタン長押し) - Xボタンは通常 gamepad.buttons[2]
+                const xButtonPressed = gamepad2.buttons[2] && gamepad2.buttons[2].pressed;
 
-    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix); // コントローラーの先端方向
+                if (xButtonPressed) {
+                    if (xButtonPressTime === 0) {
+                        xButtonPressTime = performance.now();
+                    } else if (performance.now() - xButtonPressTime > 1000) { // 1秒長押し
+                        if (!vrMemoMode) {
+                            toggleMemoMode();
+                            vrMemoMode = true;
+                        }
+                    }
+                } else {
+                    xButtonPressTime = 0;
+                }
+                
+                // メモ配置 (メモモード中、右トリガー) - 右トリガーは通常 gamepad.buttons[1]
+                const rightTriggerPressed = gamepad2.buttons[1] && gamepad2.buttons[1].pressed;
+                if (vrMemoMode && memoMode && rightTriggerPressed && !controller2.userData.memoPlaced) {
+                    placeVRMemo(controller2);
+                    controller2.userData.memoPlaced = true;
+                } else if (!rightTriggerPressed) {
+                    controller2.userData.memoPlaced = false;
+                }
+            }
+        }
 
-    const intersects = raycaster.intersectObjects(scene.children, true);
+        function placeVRMemo(controller) {
+            const raycaster = new THREE.Raycaster();
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
 
-    if (intersects.length > 0) {
-        pendingMemoPosition = intersects[0].point;
-        updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
-        
-        // 入力方法ダイアログを表示
-        document.getElementById('inputMethodDialog').style.display = 'block';
-    } else {
-        updateStatus('モデル/床にヒットしませんでした');
-    }
-}
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix); // コントローラーの先端方向
 
-function toggleMemoMode() {
-    memoMode = !memoMode;
-    document.getElementById('memoModeIndicator').style.display = memoMode ? 'block' : 'none';
-    document.getElementById('memoPanel').style.display = memoMode ? 'block' : 'none';
-    updateStatus(`メモモード: ${memoMode ? 'ON' : 'OFF'}`);
-    
-    if (memoMode && isVRMode) {
-        vrMemoMode = true; // VRモードでMキーを押したらvrMemoModeもON
-    } else if (!memoMode) {
-        vrMemoMode = false; // メモモードOFFでvrMemoModeもOFF
-    }
-}
+            const intersects = raycaster.intersectObjects(scene.children, true);
 
-function placeMemo(event) {
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            if (intersects.length > 0) {
+                pendingMemoPosition = intersects[0].point;
+                updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
+                
+                // 入力方法ダイアログを表示
+                document.getElementById('inputMethodDialog').style.display = 'block';
+            } else {
+                updateStatus('モデル/床にヒットしませんでした');
+            }
+        }
 
-    raycaster.setFromCamera(mouse, camera);
+        function toggleMemoMode() {
+            memoMode = !memoMode;
+            document.getElementById('memoModeIndicator').style.display = memoMode ? 'block' : 'none';
+            document.getElementById('memoPanel').style.display = memoMode ? 'block' : 'none';
+            updateStatus(`メモモード: ${memoMode ? 'ON' : 'OFF'}`);
+            
+            if (memoMode && isVRMode) {
+                vrMemoMode = true; // VRモードでMキーを押したらvrMemoModeもON
+            } else if (!memoMode) {
+                vrMemoMode = false; // メモモードOFFでvrMemoModeもOFF
+            }
+        }
 
-    const intersects = raycaster.intersectObjects(scene.children, true);
+        function placeMemo(event) {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    if (intersects.length > 0) {
-        pendingMemoPosition = intersects[0].point;
-        updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
-        
-        // 入力方法ダイアログを表示
-        document.getElementById('inputMethodDialog').style.display = 'block';
-    } else {
-        updateStatus('モデル/床にヒットしませんでした');
-    }
-}
+            raycaster.setFromCamera(mouse, camera);
 
-function createMemoMesh(position, text, priority) {
-    const geometry = new THREE.SphereGeometry(0.1, 16, 16);
-    let color;
-    switch(priority) {
-        case 'high':
-            color = 0xf44336; // Red
-            break;
-        case 'normal':
-            color = 0xffeb3b; // Yellow
-            break;
-        case 'low':
-        default:
-            color = 0x4CAF50; // Green
-            break;
-    }
-    const material = new THREE.MeshBasicMaterial({ color: color });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    mesh.userData.memoId = memoCounter++;
+            const intersects = raycaster.intersectObjects(scene.children, true);
 
-    scene.add(mesh);
+            if (intersects.length > 0) {
+                pendingMemoPosition = intersects[0].point;
+                updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
+                
+                // 入力方法ダイアログを表示
+                document.getElementById('inputMethodDialog').style.display = 'block';
+            } else {
+                updateStatus('モデル/床にヒットしませんでした');
+            }
+        }
 
-    memos.push({
-        id: mesh.userData.memoId,
-        text: text,
-        position: position,
-        mesh: mesh,
-        priority: priority
-    });
+        function createMemoMesh(position, text, priority) {
+            const geometry = new THREE.SphereGeometry(0.1, 16, 16);
+            let color;
+            switch(priority) {
+                case 'high':
+                    color = 0xf44336; // Red
+                    break;
+                case 'normal':
+                    color = 0xffeb3b; // Yellow
+                    break;
+                case 'low':
+                default:
+                    color = 0x4CAF50; // Green
+                    break;
+            }
+            const material = new THREE.MeshBasicMaterial({ color: color });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(position);
+            mesh.userData.memoId = memoCounter++;
 
-    updateMemoList();
-}
+            scene.add(mesh);
 
-function updateMemoList() {
-    const listEl = document.getElementById('memoList');
-    listEl.innerHTML = '';
-    
-    memos.forEach(memo => {
-        const item = document.createElement('div');
-        item.className = `memo-item priority-${memo.priority}`;
-        item.innerHTML = `
-            <strong>メモ #${memo.id} (${memo.priority.toUpperCase()})</strong><br>
-            位置: (${memo.position.x.toFixed(1)}, ${memo.position.y.toFixed(1)}, ${memo.position.z.toFixed(1)})<br>
-            内容: ${memo.text}<br>
-            <button onclick="removeMemo(${memo.id})">削除</button>
-        `;
-        listEl.appendChild(item);
-    });
-}
+            memos.push({
+                id: mesh.userData.memoId,
+                text: text,
+                position: position,
+                mesh: mesh,
+                priority: priority
+            });
 
-window.removeMemo = function(id) {
-    const index = memos.findIndex(memo => memo.id === id);
-    if (index !== -1) {
-        scene.remove(memos[index].mesh);
-        memos.splice(index, 1);
-        updateMemoList();
-        updateStatus(`メモ #${id} を削除しました`);
-    }
-}
+            updateMemoList();
+        }
 
-function initSpeechRecognition() {
-    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (window.SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.lang = 'ja-JP';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        function updateMemoList() {
+            const listEl = document.getElementById('memoList');
+            listEl.innerHTML = '';
+            
+            memos.forEach(memo => {
+                const item = document.createElement('div');
+                item.className = `memo-item priority-${memo.priority}`;
+                item.innerHTML = `
+                    <strong>メモ #${memo.id} (${memo.priority.toUpperCase()})</strong><br>
+                    位置: (${memo.position.x.toFixed(1)}, ${memo.position.y.toFixed(1)}, ${memo.position.z.toFixed(1)})<br>
+                    内容: ${memo.text}<br>
+                    <button onclick="removeMemo(${memo.id})">削除</button>
+                `;
+                listEl.appendChild(item);
+            });
+        }
 
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            document.getElementById('memoTextarea').value = transcript;
-            updateStatus('音声認識完了');
-            document.getElementById('voiceButton').classList.remove('recording');
+        window.removeMemo = function(id) {
+            const index = memos.findIndex(memo => memo.id === id);
+            if (index !== -1) {
+                scene.remove(memos[index].mesh);
+                memos.splice(index, 1);
+                updateMemoList();
+                updateStatus(`メモ #${id} を削除しました`);
+            }
+        }
+
+        function initSpeechRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (window.SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'ja-JP';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('memoTextarea').value = transcript;
+                    updateStatus('音声認識完了');
+                    document.getElementById('voiceButton').classList.remove('recording');
+                    document.getElementById('memoInputDialog').style.display = 'block';
+                    isRecording = false;
+                };
+
+                recognition.onerror = (event) => {
+                    updateStatus('音声認識エラー: ' + event.error);
+                    document.getElementById('voiceButton').classList.remove('recording');
+                    document.getElementById('memoInputDialog').style.display = 'block'; // エラー時も手動入力に切り替え
+                    isRecording = false;
+                };
+
+                recognition.onend = () => {
+                    if (isRecording) {
+                        document.getElementById('voiceButton').classList.remove('recording');
+                        isRecording = false;
+                    }
+                };
+            } else {
+                document.getElementById('voiceButton').disabled = true;
+                document.getElementById('voiceButton').textContent = '音声入力非対応';
+                document.getElementById('voiceInputBtn').disabled = true;
+            }
+        }
+
+        function toggleVoiceInput() {
+            if (!pendingMemoPosition) {
+                updateStatus('メモを配置する場所を先にクリックしてください');
+                return;
+            }
+            document.getElementById('inputMethodDialog').style.display = 'block';
+        }
+
+        function chooseVoiceInput() {
+            document.getElementById('inputMethodDialog').style.display = 'none';
+            
+            if (recognition && !isRecording) {
+                document.getElementById('memoTextarea').value = '録音中...';
+                document.getElementById('memoInputDialog').style.display = 'block'; // 録音状態を表示
+                document.getElementById('voiceButton').classList.add('recording');
+                
+                // 録音開始
+                try {
+                    recognition.start();
+                    isRecording = true;
+                    updateStatus('音声録音開始...話してください');
+                } catch (e) {
+                    updateStatus('録音開始エラー: ' + e.message);
+                    document.getElementById('memoInputDialog').style.display = 'none';
+                    document.getElementById('voiceButton').classList.remove('recording');
+                    isRecording = false;
+                }
+            } else {
+                chooseKeyboardInput(); // 音声入力が使えない場合はキーボードに切り替え
+            }
+        }
+
+        function chooseKeyboardInput() {
+            document.getElementById('inputMethodDialog').style.display = 'none';
+            document.getElementById('memoTextarea').value = '';
             document.getElementById('memoInputDialog').style.display = 'block';
-            isRecording = false;
-        };
+        }
 
-        recognition.onerror = (event) => {
-            updateStatus('音声認識エラー: ' + event.error);
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('memoInputDialog').style.display = 'block'; // エラー時も手動入力に切り替え
-            isRecording = false;
-        };
+        function submitMemo() {
+            const text = document.getElementById('memoTextarea').value.trim();
+            if (text && pendingMemoPosition) {
+                // 簡易的に優先度を判定（例: 「重要」が含まれていたら高）
+                let priority = 'low';
+                if (text.includes('重要') || text.includes('要確認')) {
+                    priority = 'high';
+                } else if (text.length > 50) { // 長いメモはnormal
+                    priority = 'normal';
+                }
+                
+                createMemoMesh(pendingMemoPosition, text, priority);
+                updateStatus(`メモを作成しました: ${text.substring(0, 15)}...`);
+                
+                // リセット
+                pendingMemoPosition = null;
+                document.getElementById('memoInputDialog').style.display = 'none';
+                document.getElementById('memoTextarea').value = '';
+            } else {
+                updateStatus('メモの内容を入力してください');
+            }
+        }
 
-        recognition.onend = () => {
+        function cancelMemoInput() {
+            document.getElementById('memoInputDialog').style.display = 'none';
+            document.getElementById('memoTextarea').value = '';
+            pendingMemoPosition = null;
             if (isRecording) {
-                document.getElementById('voiceButton').classList.remove('recording');
+                recognition.stop();
                 isRecording = false;
             }
-        };
-    } else {
-        document.getElementById('voiceButton').disabled = true;
-        document.getElementById('voiceButton').textContent = '音声入力非対応';
-        document.getElementById('voiceInputBtn').disabled = true;
-    }
-}
-
-function toggleVoiceInput() {
-    if (!pendingMemoPosition) {
-        updateStatus('メモを配置する場所を先にクリックしてください');
-        return;
-    }
-    document.getElementById('inputMethodDialog').style.display = 'block';
-}
-
-function chooseVoiceInput() {
-    document.getElementById('inputMethodDialog').style.display = 'none';
-    
-    if (recognition && !isRecording) {
-        document.getElementById('memoTextarea').value = '録音中...';
-        document.getElementById('memoInputDialog').style.display = 'block'; // 録音状態を表示
-        document.getElementById('voiceButton').classList.add('recording');
-        
-        // 録音開始
-        try {
-            recognition.start();
-            isRecording = true;
-            updateStatus('音声録音開始...話してください');
-        } catch (e) {
-            updateStatus('録音開始エラー: ' + e.message);
-            document.getElementById('memoInputDialog').style.display = 'none';
-            document.getElementById('voiceButton').classList.remove('recording');
-            isRecording = false;
+            updateStatus('メモ作成をキャンセルしました');
         }
-    } else {
-        chooseKeyboardInput(); // 音声入力が使えない場合はキーボードに切り替え
-    }
-}
 
-function chooseKeyboardInput() {
-    document.getElementById('inputMethodDialog').style.display = 'none';
-    document.getElementById('memoTextarea').value = '';
-    document.getElementById('memoInputDialog').style.display = 'block';
-}
-
-function submitMemo() {
-    const text = document.getElementById('memoTextarea').value.trim();
-    if (text && pendingMemoPosition) {
-        // 簡易的に優先度を判定（例: 「重要」が含まれていたら高）
-        let priority = 'low';
-        if (text.includes('重要') || text.includes('要確認')) {
-            priority = 'high';
-        } else if (text.length > 50) { // 長いメモはnormal
-            priority = 'normal';
-        }
+        init();
         
-        createMemoMesh(pendingMemoPosition, text, priority);
-        updateStatus(`メモを作成しました: ${text.substring(0, 15)}...`);
-        
-        // リセット
-        pendingMemoPosition = null;
-        document.getElementById('memoInputDialog').style.display = 'none';
-        document.getElementById('memoTextarea').value = '';
-    } else {
-        updateStatus('メモの内容を入力してください');
-    }
-}
-
-function cancelMemoInput() {
-    document.getElementById('memoInputDialog').style.display = 'none';
-    document.getElementById('memoTextarea').value = '';
-    pendingMemoPosition = null;
-    if (isRecording) {
-        recognition.stop();
-        isRecording = false;
-    }
-    updateStatus('メモ作成をキャンセルしました');
-}
-
-init();
+    </script>
+</body>
+</html>

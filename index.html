@@ -18,6 +18,7 @@
         #info input[type="file"] { border: none; padding: 0; }
         #scaleControls button { width: 45px; display: inline-block; margin: 2px; }
         #scaleValue { display: block; margin-top: 5px; font-weight: bold; }
+        #resetDialogsBtn { background-color: #ff9800; color: white; } /* リセットボタンを強調 */
 
         /* VR Mode Indicator */
         #memoModeIndicator {
@@ -38,8 +39,9 @@
 
         /* Dialogs */
         .dialog-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000; display: none;
-            display: flex; justify-content: center; align-items: center;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000;
+            display: none; /* 初期状態で非表示 */
+            justify-content: center; align-items: center;
         }
         .dialog-content {
             background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%; text-align: center;
@@ -90,6 +92,7 @@
         <h4>カメラ/モデル操作</h4>
         <button id="resetButton">カメラリセット</button>
         <button id="clearButton">モデル/メモ削除</button>
+        <button id="resetDialogsBtn">ダイアログをリセット</button>
 
         <div style="margin-top: 10px;">
             <label for="scaleSlider">モデル倍率</label>
@@ -127,9 +130,6 @@
     </div>
 
     <script>
-        // ここに提供されたJavaScriptコード全体を貼り付けます
-        // ... (ここに前回の回答で提供されたJavaScriptコード全文を貼り付ける) ...
-        
         let scene, camera, renderer;
         let moveForward = false, moveBackward = false;
         let moveLeft = false, moveRight = false;
@@ -168,7 +168,7 @@
         let sphereMesh; // 球体のメッシュを保持するための変数
 
         // HTMLの更新日時（手動で更新してください）
-        const HTML_UPDATE_DATE = '2025/11/05 14:26'; // 更新しました
+        const HTML_UPDATE_DATE = '2025/11/05 14:35'; 
 
         function updateStatus(msg) {
             statusEl.textContent = msg;
@@ -289,7 +289,7 @@
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // 直径1mの球 (デバッグ対象)
+            // 直径1mの球 (デバッグ対象: コントローラー入力で色が変わる)
             const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
             const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x4ecdc4 });
             sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial); // 変数に保持
@@ -316,18 +316,29 @@
             document.getElementById('scale1').addEventListener('click', () => setScale(1.0));
             document.getElementById('scale2').addEventListener('click', () => setScale(2.0));
             document.getElementById('scale5').addEventListener('click', () => setScale(5.0));
-            document.getElementById('voiceButton').addEventListener('click', toggleVoiceInput);
             document.getElementById('voiceInputBtn').addEventListener('click', chooseVoiceInput);
             document.getElementById('keyboardInputBtn').addEventListener('click', chooseKeyboardInput);
             document.getElementById('submitMemoBtn').addEventListener('click', submitMemo);
             document.getElementById('cancelMemoBtn').addEventListener('click', cancelMemoInput);
-            
+            document.getElementById('resetDialogsBtn').addEventListener('click', resetDialogs); // ダイアログリセット
+
             window.addEventListener('resize', onWindowResize);
 
             initSpeechRecognition();
 
             updateStatus('準備完了 - GLBファイルを選択してください');
             renderer.setAnimationLoop(animate);
+        }
+        
+        function resetDialogs() {
+            document.getElementById('inputMethodDialog').style.display = 'none';
+            document.getElementById('memoInputDialog').style.display = 'none';
+            pendingMemoPosition = null;
+            if (isRecording) {
+                recognition.stop();
+                isRecording = false;
+            }
+            updateStatus('ダイアログとメモ配置状態をリセットしました');
         }
 
         function onFileSelect(event) {
@@ -549,13 +560,18 @@
                 return;
             }
 
+            // マウス左クリック (event.button === 0) でメモモードがONならメモ配置を試みる
             if (memoMode && event.button === 0) {
                 placeMemo(event);
                 return;
             }
-            isMouseDown = true;
-            lastMouseX = event.clientX;
-            lastMouseY = event.clientY;
+            
+            // マウス右ボタンが押されたときのみカメラ回転を有効にする
+            if (event.button === 2 || event.button === 0) { // 左クリックでも回転したい場合は 0 を残す
+                isMouseDown = true;
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
         }
 
         function onMouseUp() {
@@ -660,18 +676,11 @@
         }
 
         function handlePCMovement(delta) {
-            // ----------------------------------------------------
-            // 🛠️ 修正点 2: コントローラー入力をPCモードのフラグに反映
-            // ----------------------------------------------------
-            
-            // キーボードの状態は onKeyDown/onKeyUp で設定された状態を保持。
-            // ここではコントローラーの状態を読み取り、キーボードと組み合わせる。
-            
+            // コントローラー入力を取得
             let controllerMoveForward = false;
             let controllerMoveBackward = false;
             let controllerMoveLeft = false;
             let controllerMoveRight = false;
-
             const speed = MOVE_SPEED;
 
             // Gamepad APIからコントローラーの状態を取得
@@ -679,11 +688,11 @@
                 if (controller && controller.userData.gamepad) {
                     const gamepad = controller.userData.gamepad;
                     
-                    // Meta Questで一般的な左スティックの軸 [0] (X) と [1] (Y) を使用
+                    // スティックの軸 [0] (X) と [1] (Y) を使用
                     const axisX = gamepad.axes[0] || gamepad.axes[2];
                     const axisY = gamepad.axes[1] || gamepad.axes[3];
                     
-                    const threshold = 0.15; // スティックの遊びを無視する閾値
+                    const threshold = 0.15; 
 
                     if (Math.abs(axisY) > threshold) {
                         if (axisY < 0) controllerMoveForward = true; 
@@ -700,7 +709,7 @@
                         if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
                             zoomIn();
                         }
-                        // 右グリップ (buttons[2]またはbuttons[3]を試す) でズームアウトを想定
+                        // 右グリップ (buttons[2]) でズームアウトを想定
                         if (gamepad.buttons[2] && gamepad.buttons[2].pressed) {
                             zoomOut();
                         }
@@ -714,10 +723,6 @@
             const finalMoveLeft = moveLeft || controllerMoveLeft;
             const finalMoveRight = moveRight || controllerMoveRight;
 
-
-            // ----------------------------------------------------
-            // 既存のPC移動ロジック
-            // ----------------------------------------------------
             
             // PC/ブラウザモード時の重力と床判定
             velocity.y -= GRAVITY * delta;
@@ -762,7 +767,7 @@
             velocity.x -= velocity.x * 10.0 * delta;
             velocity.z -= velocity.z * 10.0 * delta;
             
-            // ⚠️ 重要なデバッグ: Aボタンの反応をブラウザモードでもチェック
+            // Aボタンのデバッグ機能（押すと球が赤くなる）
             if (controllers[1] && controllers[1].userData.gamepad) {
                 const gamepad2 = controllers[1].userData.gamepad;
                 // Aボタンは通常 gamepad.buttons[4]
@@ -900,7 +905,8 @@
                 updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
                 
                 // 入力方法ダイアログを表示
-                document.getElementById('inputMethodDialog').style.display = 'block';
+                document.getElementById('inputMethodDialog').style.display = 'flex'; // flexで表示
+                document.getElementById('memoInputDialog').style.display = 'none';
             } else {
                 updateStatus('モデル/床にヒットしませんでした');
             }
@@ -916,6 +922,7 @@
                 vrMemoMode = true; // VRモードでMキーを押したらvrMemoModeもON
             } else if (!memoMode) {
                 vrMemoMode = false; // メモモードOFFでvrMemoModeもOFF
+                resetDialogs(); // メモモードを終了したらダイアログをリセット
             }
         }
 
@@ -934,7 +941,8 @@
                 updateStatus(`メモ配置位置決定: (${pendingMemoPosition.x.toFixed(2)}, ${pendingMemoPosition.y.toFixed(2)}, ${pendingMemoPosition.z.toFixed(2)})`);
                 
                 // 入力方法ダイアログを表示
-                document.getElementById('inputMethodDialog').style.display = 'block';
+                document.getElementById('inputMethodDialog').style.display = 'flex'; // flexで表示
+                document.getElementById('memoInputDialog').style.display = 'none';
             } else {
                 updateStatus('モデル/床にヒットしませんでした');
             }
@@ -1012,37 +1020,32 @@
                     const transcript = event.results[0][0].transcript;
                     document.getElementById('memoTextarea').value = transcript;
                     updateStatus('音声認識完了');
-                    document.getElementById('voiceButton').classList.remove('recording');
-                    document.getElementById('memoInputDialog').style.display = 'block';
+                    // 音声入力後、メモ内容入力ダイアログに移行
+                    document.getElementById('memoInputDialog').style.display = 'flex';
+                    document.getElementById('voiceInputBtn').classList.remove('recording');
                     isRecording = false;
                 };
 
                 recognition.onerror = (event) => {
-                    updateStatus('音声認識エラー: ' + event.error);
-                    document.getElementById('voiceButton').classList.remove('recording');
-                    document.getElementById('memoInputDialog').style.display = 'block'; // エラー時も手動入力に切り替え
+                    updateStatus('音声認識エラー: ' + event.error + ' 手動入力に切り替えます。');
+                    document.getElementById('voiceInputBtn').classList.remove('recording');
+                    document.getElementById('memoTextarea').value = ''; // エラー時は入力をクリア
+                    document.getElementById('memoInputDialog').style.display = 'flex'; // エラー時も手動入力に切り替え
                     isRecording = false;
                 };
 
                 recognition.onend = () => {
                     if (isRecording) {
-                        document.getElementById('voiceButton').classList.remove('recording');
+                        // 認識終了イベントが来たが、結果イベントが来なかった場合
+                        document.getElementById('voiceInputBtn').classList.remove('recording');
                         isRecording = false;
                     }
                 };
             } else {
-                document.getElementById('voiceButton').disabled = true;
-                document.getElementById('voiceButton').textContent = '音声入力非対応';
+                // 音声入力非対応
                 document.getElementById('voiceInputBtn').disabled = true;
+                document.getElementById('voiceInputBtn').textContent = '音声入力非対応';
             }
-        }
-
-        function toggleVoiceInput() {
-            if (!pendingMemoPosition) {
-                updateStatus('メモを配置する場所を先にクリックしてください');
-                return;
-            }
-            document.getElementById('inputMethodDialog').style.display = 'block';
         }
 
         function chooseVoiceInput() {
@@ -1050,8 +1053,8 @@
             
             if (recognition && !isRecording) {
                 document.getElementById('memoTextarea').value = '録音中...';
-                document.getElementById('memoInputDialog').style.display = 'block'; // 録音状態を表示
-                document.getElementById('voiceButton').classList.add('recording');
+                document.getElementById('memoInputDialog').style.display = 'none'; // 録音中は入力ダイアログを一時非表示
+                document.getElementById('voiceInputBtn').classList.add('recording');
                 
                 // 録音開始
                 try {
@@ -1059,9 +1062,9 @@
                     isRecording = true;
                     updateStatus('音声録音開始...話してください');
                 } catch (e) {
-                    updateStatus('録音開始エラー: ' + e.message);
-                    document.getElementById('memoInputDialog').style.display = 'none';
-                    document.getElementById('voiceButton').classList.remove('recording');
+                    updateStatus('録音開始エラー: ' + e.message + ' 手動入力に切り替えます。');
+                    document.getElementById('memoInputDialog').style.display = 'flex';
+                    document.getElementById('voiceInputBtn').classList.remove('recording');
                     isRecording = false;
                 }
             } else {
@@ -1072,17 +1075,17 @@
         function chooseKeyboardInput() {
             document.getElementById('inputMethodDialog').style.display = 'none';
             document.getElementById('memoTextarea').value = '';
-            document.getElementById('memoInputDialog').style.display = 'block';
+            document.getElementById('memoInputDialog').style.display = 'flex';
         }
 
         function submitMemo() {
             const text = document.getElementById('memoTextarea').value.trim();
             if (text && pendingMemoPosition) {
-                // 簡易的に優先度を判定（例: 「重要」が含まれていたら高）
+                // 簡易的に優先度を判定
                 let priority = 'low';
                 if (text.includes('重要') || text.includes('要確認')) {
                     priority = 'high';
-                } else if (text.length > 50) { // 長いメモはnormal
+                } else if (text.length > 50) {
                     priority = 'normal';
                 }
                 
@@ -1090,27 +1093,18 @@
                 updateStatus(`メモを作成しました: ${text.substring(0, 15)}...`);
                 
                 // リセット
-                pendingMemoPosition = null;
-                document.getElementById('memoInputDialog').style.display = 'none';
-                document.getElementById('memoTextarea').value = '';
+                resetDialogs();
             } else {
                 updateStatus('メモの内容を入力してください');
             }
         }
 
         function cancelMemoInput() {
-            document.getElementById('memoInputDialog').style.display = 'none';
-            document.getElementById('memoTextarea').value = '';
-            pendingMemoPosition = null;
-            if (isRecording) {
-                recognition.stop();
-                isRecording = false;
-            }
+            resetDialogs();
             updateStatus('メモ作成をキャンセルしました');
         }
 
         init();
-        
     </script>
 </body>
 </html>

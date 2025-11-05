@@ -609,7 +609,7 @@
         }
 
         function createVRDebugPanel() {
-            // カメラの左上に固定表示されるデバッグパネル
+            // カメラの前方に固定表示されるデバッグパネル
             vrDebugCanvas = document.createElement('canvas');
             vrDebugCanvas.width = 512;
             vrDebugCanvas.height = 512;
@@ -618,34 +618,47 @@
             const material = new THREE.MeshBasicMaterial({ 
                 map: texture, 
                 transparent: true,
-                opacity: 0.8
+                side: THREE.DoubleSide
             });
-            const geometry = new THREE.PlaneGeometry(0.4, 0.4);
+            const geometry = new THREE.PlaneGeometry(1, 1);
             vrDebugText = new THREE.Mesh(geometry, material);
             
-            // カメラの子要素として追加（常に視界内に表示）
-            vrDebugText.position.set(-0.3, 0.3, -0.5);
-            camera.add(vrDebugText);
+            // シーンに直接追加（カメラの前方固定位置）
+            vrDebugText.position.set(-1, 2, -2);
+            scene.add(vrDebugText);
+            
+            // 初期テキストを表示
+            updateVRDebugPanel('VR Debug Panel\nInitialized...');
         }
 
         function updateVRDebugPanel(text) {
             if (!vrDebugCanvas) return;
             
             const ctx = vrDebugCanvas.getContext('2d');
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            
+            // 背景
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
             ctx.fillRect(0, 0, vrDebugCanvas.width, vrDebugCanvas.height);
             
+            // 枠線
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, vrDebugCanvas.width, vrDebugCanvas.height);
+            
+            // テキスト
             ctx.fillStyle = '#00ff00';
-            ctx.font = 'bold 20px monospace';
+            ctx.font = 'bold 24px monospace';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             
             const lines = text.split('\n');
             lines.forEach((line, i) => {
-                ctx.fillText(line, 10, 10 + i * 25);
+                ctx.fillText(line, 15, 15 + i * 30);
             });
             
-            vrDebugText.material.map.needsUpdate = true;
+            if (vrDebugText && vrDebugText.material && vrDebugText.material.map) {
+                vrDebugText.material.map.needsUpdate = true;
+            }
         }
 
         function onFileSelect(event) {

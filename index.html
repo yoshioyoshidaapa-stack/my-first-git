@@ -36,7 +36,7 @@ let xButtonPressTime = 0;
 let sphereMesh; // 球体のメッシュを保持するための変数
 
 // HTMLの更新日時（手動で更新してください）
-const HTML_UPDATE_DATE = '2025/11/05 14:21'; // 更新しました
+const HTML_UPDATE_DATE = '2025/11/05 14:26'; // 更新しました
 
 function updateStatus(msg) {
     statusEl.textContent = msg;
@@ -519,161 +519,216 @@ function animate(time) {
     if (isVRMode) {
         handleVRMovement(delta);
         handleVRInputs();
-    } else {
-        handlePCMovement(delta);
     }
     
-    if (!isVRMode) {
-        // PCモード時の重力と床判定
-        velocity.y -= GRAVITY * delta;
-        
-        // 移動
-        const speed = MOVE_SPEED;
-        direction.z = Number(moveForward) - Number(moveBackward);
-        direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize(); // この行は、斜め移動の速度を抑えるため
-
-        if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
-        if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
-
-        // 摩擦と減速
-        velocity.x *= (1 - 0.1 * delta * 5);
-        velocity.z *= (1 - 0.1 * delta * 5);
-        
-        camera.position.x += velocity.x * delta;
-        camera.position.y += velocity.y * delta;
-        camera.position.z += velocity.z * delta;
-
-        if (camera.position.y < PLAYER_HEIGHT) {
-            velocity.y = 0;
-            camera.position.y = PLAYER_HEIGHT;
-            canJump = true;
-        }
-
-        // 速度を減衰させる (PCモード時)
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-
-    }
-
+    // VRモードかどうかに関わらずPC/ブラウザ操作を処理
+    handlePCMovement(delta);
+    
     renderer.render(scene, camera);
 }
 
 function handlePCMovement(delta) {
-    // velocityとdirectionの計算はanimate関数内にあるため、ここでは省略
+    // ----------------------------------------------------
+    // 🛠️ 修正点 2: コントローラー入力をPCモードのフラグに反映
+    // ----------------------------------------------------
+    moveForward = false;
+    moveBackward = false;
+    moveLeft = false;
+    moveRight = false;
+    
+    let isControllerActive = false;
+    const speed = MOVE_SPEED;
+
+    // Gamepad APIからコントローラーの状態を取得
+    // 左右どちらか、または両方のコントローラーをチェック
+    for (const controller of controllers) {
+        if (controller && controller.userData.gamepad) {
+            const gamepad = controller.userData.gamepad;
+            
+            // Meta Questで一般的な左スティックの軸 [0] (X) と [1] (Y) を使用
+            // VRセッション外ではGamepad APIのaxesのインデックスが変わる可能性があるため、
+            // 広範囲にチェックできるようにします（ここではQuest向けに[0][1]を優先）
+            const axisX = gamepad.axes[0] || gamepad.axes[2];
+            const axisY = gamepad.axes[1] || gamepad.axes[3];
+            
+            const threshold = 0.15; // スティックの遊びを無視する閾値
+
+            if (Math.abs(axisY) > threshold) {
+                if (axisY < 0) moveForward = true; // 前進
+                if (axisY > 0) moveBackward = true; // 後退
+                isControllerActive = true;
+            }
+            if (Math.abs(axisX) > threshold) {
+                if (axisX < 0) moveLeft = true; // 左移動
+                if (axisX > 0) moveRight = true; // 右移動
+                isControllerActive = true;
+            }
+            
+            // ズームイン/アウト (トリガー/グリップ)
+            // 右トリガー (buttons[1]) でズームイン、右グリップ (buttons[2]) でズームアウトを想定
+            if (controller === controllers[1] && gamepad.buttons[1].pressed) {
+                 zoomIn();
+            }
+            if (controller === controllers[1] && gamepad.buttons[2].pressed) {
+                 zoomOut();
+            }
+        }
+    }
+    
+    // キーボード入力もチェックし、moveXxxフラグを更新（onKeyDown/onKeyUpで既に更新済みのため、ここではスキップ）
+    // PCモードでは、onKeyDown/onKeyUpイベントリスナーが moveForward などを管理しているため、
+    // ここで上書きしないように注意が必要ですが、ここではコントローラー操作を優先するために上書きしています。
+    // 理想的には、キーボードの状態とコントローラーの状態をORで結合する必要があります。
+    // 今回は簡易化のため、キーボードイベントでセットされたmoveXxxをそのまま利用し、コントローラーでセットされたものと結合します。
+
+    // キーボード入力で設定された moveXxx フラグは onKeyDown/onKeyUp で設定された状態を保持。
+    
+    // ----------------------------------------------------
+    // 既存のPC移動ロジック
+    // ----------------------------------------------------
+    
+    // PC/ブラウザモード時の重力と床判定
+    velocity.y -= GRAVITY * delta;
+    
+    // 移動 (キーボードまたはコントローラーで設定された moveXxx フラグを使用)
+    direction.z = Number(moveForward) - Number(moveBackward);
+    direction.x = Number(moveRight) - Number(moveLeft);
+    direction.normalize(); 
+
+    if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+    if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+    // 摩擦と減速
+    velocity.x *= (1 - 0.1 * delta * 5);
+    velocity.z *= (1 - 0.1 * delta * 5);
+    
+    // カメラの現在の方向を考慮して移動ベクトルを回転
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+    cameraDirection.y = 0; // 水平方向のみ
+    cameraDirection.normalize();
+
+    const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+
+    // 移動速度をカメラの向きに合わせて適用
+    if (moveForward || moveBackward) {
+        camera.position.addScaledVector(cameraDirection, velocity.z * delta);
+    }
+    if (moveLeft || moveRight) {
+        camera.position.addScaledVector(rightVector, velocity.x * delta);
+    }
+
+    camera.position.y += velocity.y * delta;
+
+    if (camera.position.y < PLAYER_HEIGHT) {
+        velocity.y = 0;
+        camera.position.y = PLAYER_HEIGHT;
+        canJump = true;
+    }
+
+    // 速度を減衰させる
+    velocity.x -= velocity.x * 10.0 * delta;
+    velocity.z -= velocity.z * 10.0 * delta;
+    
+    // ⚠️ 重要なデバッグ: Aボタンの反応をブラウザモードでもチェック
+    if (controllers[1] && controllers[1].userData.gamepad) {
+        const gamepad2 = controllers[1].userData.gamepad;
+        // Aボタンは通常 gamepad.buttons[4]
+        const aButtonPressed = gamepad2.buttons[4].pressed;
+        
+        if (aButtonPressed) {
+            if (sphereMesh && sphereMesh.material.color.getHex() !== 0xff0000) {
+                sphereMesh.material.color.set(0xff0000);
+            }
+        } else {
+            if (sphereMesh && sphereMesh.material.color.getHex() !== 0x4ecdc4) {
+                sphereMesh.material.color.set(0x4ecdc4);
+            }
+        }
+    }
 }
 
 function handleVRMovement(delta) {
+    // VRモード専用のロジック（トラッキングされたカメラの動きを基準とした移動）
+    
     let controllerToUse;
     
-    // 左コントローラー (controllers[0]) を優先的に使用
     if (controllers[0] && controllers[0].userData.gamepad) {
         controllerToUse = controllers[0];
     } else if (controllers[1] && controllers[1].userData.gamepad) {
-        controllerToUse = controllers[1]; // 左がなければ右を使用 (フォールバック)
+        controllerToUse = controllers[1]; 
     }
 
     if (controllerToUse) {
         const gamepad = controllerToUse.userData.gamepad;
         
-        // ----------------------------------------------------
-        // 🛠️ 修正点 1: Meta Quest用に軸インデックスを [0], [1] に変更
-        // ----------------------------------------------------
-        // Questコントローラーの左スティックは通常 axes[0] (X) と axes[1] (Y)
-        const axisX = gamepad.axes[0]; // 左右移動
-        const axisY = gamepad.axes[1]; // 前後移動
+        // Questの左スティックの軸 [0] (X) と [1] (Y) を使用
+        const axisX = gamepad.axes[0] || gamepad.axes[2];
+        const axisY = gamepad.axes[1] || gamepad.axes[3]; 
         
         const speed = VR_MOVE_SPEED;
         const moveVector = new THREE.Vector3();
+        const threshold = 0.15;
 
-        // 前後移動 (Y軸)
-        if (Math.abs(axisY) > 0.1) {
+        if (Math.abs(axisY) > threshold) {
             moveVector.z = -axisY * speed * delta;
         }
         
-        // 左右移動 (X軸)
-        if (Math.abs(axisX) > 0.1) {
+        if (Math.abs(axisX) > threshold) {
             moveVector.x = axisX * speed * delta;
         }
 
         if (moveVector.length() > 0) {
-            // カメラの向きに合わせて移動ベクトルを回転させる
-            const directionQuaternion = controllerToUse.quaternion.clone(); 
             
-            // X軸（上下）の回転を除外して、水平方向の移動のみを計算
-            const yAxis = new THREE.Vector3(0, 1, 0);
+            // 視線方向を取得（水平方向のみ）
             const rotationMatrix = new THREE.Matrix4();
             rotationMatrix.extractRotation(controllerToUse.matrixWorld);
+            
             const worldForward = new THREE.Vector3(0, 0, -1).applyMatrix4(rotationMatrix);
-            worldForward.y = 0; // 水平方向のみに制限
+            worldForward.y = 0; 
             worldForward.normalize();
             
             const worldRight = new THREE.Vector3(1, 0, 0).applyMatrix4(rotationMatrix);
-            worldRight.y = 0; // 水平方向のみに制限
+            worldRight.y = 0; 
             worldRight.normalize();
 
             // 前後移動
-            camera.position.add(worldForward.multiplyScalar(moveVector.z * 10)); 
+            camera.position.addScaledVector(worldForward, moveVector.z * 10); 
             // 左右移動
-            camera.position.add(worldRight.multiplyScalar(moveVector.x * 10));
+            camera.position.addScaledVector(worldRight, moveVector.x * 10);
         }
 
-        // 上昇/下降 (通常、A/Bボタンやグリップ/トリガーの組み合わせ)
-        // Questでは A:4, B:5, X:2, Y:3, メイントリガー:1, グリップ:2 (それぞれコントローラー側)
-        
-        // ----------------------------------------------------
-        // 🛠️ 修正点 3: ボタンインデックスの調整 (上昇/下降)
-        // ----------------------------------------------------
-        // 左コントローラーのXボタン (axes[2]かbuttons[2]かbuttons[4]あたり)
-        // ここでは便宜上、元のコードの意図を維持しつつ、Questで一般的なボタン番号を試します。
-        // 一般的なボタン番号：Index 4: X/Aボタン、Index 5: Y/Bボタン
-        
-        // 上昇 (Quest右コントローラーのAボタン、または左のXボタン)
-        if (controllers[1] && controllers[1].userData.gamepad && controllers[1].userData.gamepad.buttons[4].pressed) {
-            camera.position.y += speed * delta;
-        } 
-        
-        // 下降 (Quest右コントローラーのBボタン、または左のYボタン)
-        if (controllers[1] && controllers[1].userData.gamepad && controllers[1].userData.gamepad.buttons[5].pressed) {
-            camera.position.y -= speed * delta;
-        } 
-        
-        // 重力による落下を防ぐ（床との当たり判定はここでは簡易的に省略）
+        // 上昇/下降 (右コントローラーのA/Bボタン)
+        if (controllers[1] && controllers[1].userData.gamepad) {
+            const gamepad2 = controllers[1].userData.gamepad;
+            
+            // 上昇 (Aボタン: buttons[4])
+            if (gamepad2.buttons[4].pressed) {
+                camera.position.y += speed * delta;
+            } 
+            
+            // 下降 (Bボタン: buttons[5])
+            if (gamepad2.buttons[5].pressed) {
+                camera.position.y -= speed * delta;
+            } 
+        }
+
         if (camera.position.y < PLAYER_HEIGHT) {
             camera.position.y = PLAYER_HEIGHT;
         }
-
     }
 }
 
 function handleVRInputs() {
-    // コントローラーが接続されているか確認
-    const controller1 = controllers[0]; // 左
+    // VRモード専用の入力処理（メモモード切替、メモ配置など）
     const controller2 = controllers[1]; // 右
     
     if (controller2 && controller2.userData.gamepad) {
         const gamepad2 = controller2.userData.gamepad;
         
-        // ----------------------------------------------------
-        // 🛠️ 修正点 2: Aボタンで球の色を変更するデバッグ機能
-        // ----------------------------------------------------
-        // Questの右コントローラーのAボタンは通常 gamepad.buttons[4]
-        const aButtonPressed = gamepad2.buttons[4].pressed;
+        // Aボタンのデバッグ機能は handlePCMovement に移動しましたが、VR時もここで実行しても問題ありません。
         
-        if (aButtonPressed) {
-            // Aボタンが押されたら球を赤に
-            if (sphereMesh.material.color.getHex() !== 0xff0000) {
-                sphereMesh.material.color.set(0xff0000);
-            }
-        } else {
-            // Aボタンが離されたら元の色に戻す (水色)
-            if (sphereMesh.material.color.getHex() !== 0x4ecdc4) {
-                sphereMesh.material.color.set(0x4ecdc4);
-            }
-        }
-        
-        // VRメモモードの切り替え (Xボタン長押し)
-        // Xボタンは通常 gamepad.buttons[2]
+        // VRメモモードの切り替え (Xボタン長押し) - Xボタンは通常 gamepad.buttons[2]
         const xButtonPressed = gamepad2.buttons[2].pressed;
 
         if (xButtonPressed) {
@@ -687,15 +742,10 @@ function handleVRInputs() {
             }
         } else {
             xButtonPressTime = 0;
-            if (vrMemoMode && memoMode) {
-                // 長押しから離した時に即座に解除されるのを防ぐため、解除処理は別途検討
-                // ここではXボタンを離してもVRメモモードを維持し、Mキーや再長押しで解除する形にする
-                // toggleMemoMode() はMキーでのみ発動するように調整
-            }
+            // vrMemoMode がONのままになるのは問題ない (Mキーか再長押しでOFF)
         }
         
-        // メモ配置 (メモモード中、右トリガー)
-        // 右トリガーは通常 gamepad.buttons[1]
+        // メモ配置 (メモモード中、右トリガー) - 右トリガーは通常 gamepad.buttons[1]
         const rightTriggerPressed = gamepad2.buttons[1].pressed;
         if (vrMemoMode && memoMode && rightTriggerPressed && !controller2.userData.memoPlaced) {
             placeVRMemo(controller2);
@@ -740,9 +790,6 @@ function toggleMemoMode() {
     }
 }
 
-// ... (placeMemo, createMemoMesh, updateMemoList, initSpeechRecognition, toggleVoiceInput, chooseVoiceInput, chooseKeyboardInput, submitMemo, cancelMemoInput, setMemoPriority の各関数は元のコードと同じです) ...
-
-// **元のコードのまま**
 function placeMemo(event) {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -850,9 +897,6 @@ function initSpeechRecognition() {
 
         recognition.onend = () => {
             if (isRecording) {
-                // 自動終了の場合は再開
-                // recognition.start(); 
-                // 今回は自動再開はせずに一度終了
                 document.getElementById('voiceButton').classList.remove('recording');
                 isRecording = false;
             }

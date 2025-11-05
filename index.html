@@ -1210,12 +1210,10 @@
         function handleVRControllers(delta) {
             const session = renderer.xr.getSession();
             if (!session) {
-                updateStatus('VRセッションなし');
                 return;
             }
 
             if (!session.inputSources || session.inputSources.length === 0) {
-                // updateStatus('コントローラー未検出');
                 return;
             }
 
@@ -1224,20 +1222,29 @@
                 const gamepad = inputSource.gamepad;
                 
                 if (!gamepad) {
-                    console.log('Gamepad not found for input source', i);
                     continue;
                 }
 
-                console.log(`Controller ${i} (${inputSource.handedness}):`, 
-                    'axes:', gamepad.axes, 
-                    'buttons:', gamepad.buttons.map((b, idx) => ({idx, pressed: b.pressed, value: b.value})));
+                // 全ボタンとaxesを確認
+                let debugInfo = `${inputSource.handedness}: `;
+                debugInfo += `axes[${gamepad.axes.map((v, i) => `${i}:${v.toFixed(2)}`).join(',')}] `;
+                debugInfo += `btns[${gamepad.buttons.map((b, i) => b.pressed ? i : '').filter(x => x !== '').join(',')}]`;
+                console.log(debugInfo);
 
                 if (inputSource.handedness === 'left') {
-                    const axes = gamepad.axes;
-                    if (axes.length >= 2) {
-                        const x = axes[0] || 0; // 左右（修正: axes[2]→axes[0]）
-                        const z = axes[1] || 0; // 前後（修正: axes[3]→axes[1]）
-                        
+                    // 左スティック：全パターンを試す
+                    let moveX = 0;
+                    let moveZ = 0;
+                    
+                    // パターン1: axes[0], axes[1]
+                    if (Math.abs(gamepad.axes[0]) > 0.1) moveX = gamepad.axes[0];
+                    if (Math.abs(gamepad.axes[1]) > 0.1) moveZ = gamepad.axes[1];
+                    
+                    // パターン2: axes[2], axes[3]（念のため）
+                    if (Math.abs(gamepad.axes[2]) > 0.1) moveX = gamepad.axes[2];
+                    if (Math.abs(gamepad.axes[3]) > 0.1) moveZ = gamepad.axes[3];
+                    
+                    if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
                         const forward = new THREE.Vector3(0, 0, -1);
                         forward.applyQuaternion(camera.quaternion);
                         forward.y = 0;
@@ -1248,58 +1255,42 @@
                         right.y = 0;
                         right.normalize();
 
-                        camera.position.add(forward.multiplyScalar(-z * VR_MOVE_SPEED * delta));
-                        camera.position.add(right.multiplyScalar(x * VR_MOVE_SPEED * delta));
+                        camera.position.add(forward.multiplyScalar(-moveZ * VR_MOVE_SPEED * delta));
+                        camera.position.add(right.multiplyScalar(moveX * VR_MOVE_SPEED * delta));
+                        
+                        console.log(`Moving: X=${moveX.toFixed(2)}, Z=${moveZ.toFixed(2)}`);
                     }
 
-                    if (gamepad.buttons[4] && gamepad.buttons[4].pressed) {
-                        camera.position.y += VR_MOVE_SPEED * delta;
-                    }
-                    if (gamepad.buttons[5] && gamepad.buttons[5].pressed) {
-                        camera.position.y -= VR_MOVE_SPEED * delta;
-                        if (camera.position.y < PLAYER_HEIGHT) {
-                            camera.position.y = PLAYER_HEIGHT;
-                        }
-                    }
-
-                    // Xボタン長押しでメモモード切替（ON/OFF両方）
-                    if (gamepad.buttons[4]) {
-                        if (gamepad.buttons[4].pressed) {
-                            if (xButtonPressTime === 0) {
-                                xButtonPressTime = performance.now();
-                            } else if (performance.now() - xButtonPressTime > 500) {
-                                // 0.5秒以上長押しでトグル
-                                vrMemoMode = !vrMemoMode;
-                                updateStatus(vrMemoMode ? 'VRメモモード ON' : 'VRメモモード OFF');
-                                xButtonPressTime = -1; // 連続トグル防止
+                    // 全ボタンをチェック（A, B, X, Y, グリップ、トリガーなど）
+                    for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
+                        if (gamepad.buttons[btnIdx].pressed) {
+                            console.log(`Left button ${btnIdx} pressed`);
+                            
+                            // とりあえずボタン0で上昇、ボタン1で下降
+                            if (btnIdx === 0) {
+                                camera.position.y += VR_MOVE_SPEED * delta;
+                            } else if (btnIdx === 1) {
+                                camera.position.y -= VR_MOVE_SPEED * delta;
+                                if (camera.position.y < PLAYER_HEIGHT) {
+                                    camera.position.y = PLAYER_HEIGHT;
+                                }
                             }
-                        } else {
-                            xButtonPressTime = 0;
                         }
-                    }
-
-                    // Yボタンでも解除可能（念のため）
-                    if (gamepad.buttons[5] && gamepad.buttons[5].pressed && vrMemoMode) {
-                        vrMemoMode = false;
-                        updateStatus('VRメモモード OFF');
                     }
                 }
 
                 if (inputSource.handedness === 'right') {
-                    // メモモード時：トリガーでメモ配置
-                    if (vrMemoMode && gamepad.buttons[0] && gamepad.buttons[0].pressed) {
-                        if (!pendingMemoPosition) {
-                            placeVRMemo();
-                        }
-                    }
-                    
-                    // 通常モード：ズーム操作
-                    if (!vrMemoMode) {
-                        if (gamepad.buttons[1] && gamepad.buttons[1].pressed) {
-                            zoomIn();
-                        }
-                        if (gamepad.buttons[0] && gamepad.buttons[0].pressed) {
-                            zoomOut();
+                    // 右コントローラーの全ボタンをチェック
+                    for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
+                        if (gamepad.buttons[btnIdx].pressed) {
+                            console.log(`Right button ${btnIdx} pressed`);
+                            
+                            // とりあえずボタン0でズームアウト、ボタン1でズームイン
+                            if (btnIdx === 0) {
+                                zoomOut();
+                            } else if (btnIdx === 1) {
+                                zoomIn();
+                            }
                         }
                     }
                 }

@@ -448,6 +448,9 @@
         let pendingMemoPosition = null;
         let vrMemoMode = false;
         let xButtonPressTime = 0;
+        
+        // HTMLの更新日時（手動で更新してください）
+        const HTML_UPDATE_DATE = '2025/01/27 15:30';
 
         function updateStatus(msg) {
             statusEl.textContent = msg;
@@ -457,10 +460,8 @@
         function init() {
             updateStatus('初期化中...');
 
-            // 更新日時を表示
-            const now = new Date();
-            const dateStr = `更新: ${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2,'0')}/${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
-            document.getElementById('updateDate').textContent = dateStr;
+            // HTMLの更新日時を表示
+            document.getElementById('updateDate').textContent = `更新: ${HTML_UPDATE_DATE}`;
 
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
@@ -1234,8 +1235,8 @@
                 if (inputSource.handedness === 'left') {
                     const axes = gamepad.axes;
                     if (axes.length >= 2) {
-                        const x = axes[2] || 0;
-                        const z = axes[3] || 0;
+                        const x = axes[0] || 0; // 左右（修正: axes[2]→axes[0]）
+                        const z = axes[1] || 0; // 前後（修正: axes[3]→axes[1]）
                         
                         const forward = new THREE.Vector3(0, 0, -1);
                         forward.applyQuaternion(camera.quaternion);

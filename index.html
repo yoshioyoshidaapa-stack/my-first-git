@@ -1317,31 +1317,32 @@
                     let moveX = 0;
                     let moveZ = 0;
                     
-                    // パターン1: axes[0], axes[1]
+                    // パターン1: axes[0], axes[1]（前後を逆転）
                     if (Math.abs(gamepad.axes[0]) > 0.05) moveX = gamepad.axes[0];
-                    if (Math.abs(gamepad.axes[1]) > 0.05) moveZ = gamepad.axes[1];
+                    if (Math.abs(gamepad.axes[1]) > 0.05) moveZ = -gamepad.axes[1]; // 逆転
                     
-                    // パターン2: axes[2], axes[3]
+                    // パターン2: axes[2], axes[3]（前後を逆転）
                     if (Math.abs(gamepad.axes[2]) > 0.05) moveX = gamepad.axes[2];
-                    if (Math.abs(gamepad.axes[3]) > 0.05) moveZ = gamepad.axes[3];
+                    if (Math.abs(gamepad.axes[3]) > 0.05) moveZ = -gamepad.axes[3]; // 逆転
                     
                     // より詳細なデバッグ情報
                     debugInfo.push(`  moveX:${moveX.toFixed(3)} moveZ:${moveZ.toFixed(3)}`);
                     
                     if (Math.abs(moveX) > 0.05 || Math.abs(moveZ) > 0.05) {
-                        // カメラの向きを基準に移動方向を計算
-                        const cameraDirection = new THREE.Vector3();
-                        camera.getWorldDirection(cameraDirection);
+                        // カメラのワールド方向を取得（頭の向きを含む）
+                        const cameraWorldQuaternion = new THREE.Quaternion();
+                        camera.getWorldQuaternion(cameraWorldQuaternion);
                         
-                        // 前後移動：カメラの向き（Y成分を保持）
-                        const forward = cameraDirection.clone();
+                        // 前方向（カメラが向いている方向、Y成分は維持）
+                        const forward = new THREE.Vector3(0, 0, -1);
+                        forward.applyQuaternion(cameraWorldQuaternion);
                         
-                        // 左右移動：カメラの向きに垂直（Y軸を除く）
-                        const right = new THREE.Vector3();
-                        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+                        // 右方向
+                        const right = new THREE.Vector3(1, 0, 0);
+                        right.applyQuaternion(cameraWorldQuaternion);
 
                         const moveVector = new THREE.Vector3();
-                        moveVector.add(forward.multiplyScalar(-moveZ * VR_MOVE_SPEED * delta));
+                        moveVector.add(forward.multiplyScalar(moveZ * VR_MOVE_SPEED * delta));
                         moveVector.add(right.multiplyScalar(moveX * VR_MOVE_SPEED * delta));
                         
                         const oldPos = cameraRig.position.clone();
@@ -1355,23 +1356,34 @@
                         debugInfo.push(`  (threshold not met)`);
                     }
 
-                    // ボタンチェック（上下移動とメモモード）
-                    for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
-                        if (gamepad.buttons[btnIdx].pressed) {
-                            debugInfo.push(`  Btn ${btnIdx} pressed`);
+                    // ボタンチェック - メモモード用の特別処理
+                    const btn4Pressed = gamepad.buttons[4] && gamepad.buttons[4].pressed;
+                    
+                    if (btn4Pressed) {
+                        if (xButtonPressTime === 0) {
+                            xButtonPressTime = performance.now();
+                            debugInfo.push(`  Btn4 START press (${xButtonPressTime})`);
+                        } else if (xButtonPressTime > 0) {
+                            const pressDuration = performance.now() - xButtonPressTime;
+                            debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
                             
-                            // Xボタン（通常はボタン4または5）でメモモード
-                            if (btnIdx === 4 || btnIdx === 5) {
-                                if (xButtonPressTime === 0) {
-                                    xButtonPressTime = performance.now();
-                                } else if (performance.now() - xButtonPressTime > 500 && xButtonPressTime > 0) {
-                                    vrMemoMode = !vrMemoMode;
-                                    debugInfo.push(`  MEMO MODE: ${vrMemoMode ? 'ON' : 'OFF'}`);
-                                    xButtonPressTime = -1; // 連続トグル防止
-                                }
+                            if (pressDuration > 500) {
+                                vrMemoMode = !vrMemoMode;
+                                debugInfo.push(`  *** MEMO MODE: ${vrMemoMode ? 'ON' : 'OFF'} ***`);
+                                xButtonPressTime = -1; // 連続トグル防止
                             }
-                            
-                            // ボタン0,1で上下移動
+                        } else if (xButtonPressTime === -1) {
+                            debugInfo.push(`  Btn4 (cooldown)`);
+                        }
+                    } else {
+                        if (xButtonPressTime !== -1) {
+                            xButtonPressTime = 0; // リセット
+                        }
+                    }
+
+                    // その他のボタン（上下移動）
+                    for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
+                        if (gamepad.buttons[btnIdx].pressed && btnIdx !== 4) {
                             if (btnIdx === 0) {
                                 cameraRig.position.y += VR_MOVE_SPEED * delta;
                                 debugInfo.push(`  UP!`);
@@ -1381,13 +1393,6 @@
                                     cameraRig.position.y = 0;
                                 }
                                 debugInfo.push(`  DOWN!`);
-                            }
-                        } else {
-                            // ボタンが離されたらタイマーリセット
-                            if (btnIdx === 4 || btnIdx === 5) {
-                                if (xButtonPressTime > 0) {
-                                    xButtonPressTime = 0;
-                                }
                             }
                         }
                     }

@@ -450,13 +450,14 @@
         let pendingMemoPosition = null;
         let vrMemoMode = false;
         let xButtonPressTime = 0;
+        let xButtonCooldown = false;
         let vrDebugText = null;
         let vrDebugCanvas = null;
         let cameraRig = null; // VR用のカメラリグ
         
         // バージョン番号で管理（手動更新）
-        const VERSION = 'v1.0.7';
-        const UPDATE_DATE = '2025/01/27 17:30';
+        const VERSION = 'v1.0.8';
+        const UPDATE_DATE = '2025/01/27 18:00';
 
         function updateStatus(msg) {
             statusEl.textContent = msg;
@@ -1333,20 +1334,26 @@
                         const cameraWorldQuaternion = new THREE.Quaternion();
                         camera.getWorldQuaternion(cameraWorldQuaternion);
                         
-                        // 前方向（カメラが向いている方向、Y成分は維持）
+                        // 前方向（カメラが向いている方向）
                         const forward = new THREE.Vector3(0, 0, -1);
                         forward.applyQuaternion(cameraWorldQuaternion);
+                        forward.y = 0; // Y成分をゼロにして水平移動のみ
+                        forward.normalize();
                         
                         // 右方向
                         const right = new THREE.Vector3(1, 0, 0);
                         right.applyQuaternion(cameraWorldQuaternion);
+                        right.y = 0; // Y成分をゼロにして水平移動のみ
+                        right.normalize();
 
                         const moveVector = new THREE.Vector3();
                         moveVector.add(forward.multiplyScalar(moveZ * VR_MOVE_SPEED * delta));
                         moveVector.add(right.multiplyScalar(moveX * VR_MOVE_SPEED * delta));
                         
                         const oldPos = cameraRig.position.clone();
-                        cameraRig.position.add(moveVector);
+                        cameraRig.position.x += moveVector.x;
+                        cameraRig.position.z += moveVector.z;
+                        // Y軸（高さ）は変更しない
                         
                         moved = true;
                         const distance = oldPos.distanceTo(cameraRig.position);
@@ -1360,25 +1367,28 @@
                     const btn4Pressed = gamepad.buttons[4] && gamepad.buttons[4].pressed;
                     
                     if (btn4Pressed) {
-                        if (xButtonPressTime === 0) {
-                            xButtonPressTime = performance.now();
-                            debugInfo.push(`  Btn4 START press (${xButtonPressTime})`);
-                        } else if (xButtonPressTime > 0) {
-                            const pressDuration = performance.now() - xButtonPressTime;
-                            debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
-                            
-                            if (pressDuration > 500) {
-                                vrMemoMode = !vrMemoMode;
-                                debugInfo.push(`  *** MEMO MODE: ${vrMemoMode ? 'ON' : 'OFF'} ***`);
-                                xButtonPressTime = -1; // 連続トグル防止
+                        if (!xButtonCooldown) {
+                            if (xButtonPressTime === 0) {
+                                xButtonPressTime = performance.now();
+                                debugInfo.push(`  Btn4 START press`);
+                            } else {
+                                const pressDuration = performance.now() - xButtonPressTime;
+                                debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
+                                
+                                if (pressDuration > 500) {
+                                    vrMemoMode = !vrMemoMode;
+                                    debugInfo.push(`  *** MEMO MODE: ${vrMemoMode ? 'ON' : 'OFF'} ***`);
+                                    xButtonCooldown = true; // クールダウン開始
+                                    xButtonPressTime = 0;
+                                }
                             }
-                        } else if (xButtonPressTime === -1) {
-                            debugInfo.push(`  Btn4 (cooldown)`);
+                        } else {
+                            debugInfo.push(`  Btn4 (cooldown - release to reset)`);
                         }
                     } else {
-                        if (xButtonPressTime !== -1) {
-                            xButtonPressTime = 0; // リセット
-                        }
+                        // ボタンが離されたらリセット
+                        xButtonPressTime = 0;
+                        xButtonCooldown = false;
                     }
 
                     // その他のボタン（上下移動）

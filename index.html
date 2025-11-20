@@ -1289,6 +1289,14 @@
 
             let debugInfo = ['VR Debug Info', ''];
             let moved = false;
+            
+            // メモモード状態を常に表示
+            if (vrMemoMode) {
+                debugInfo.push('=== MEMO MODE: ON ===');
+            } else {
+                debugInfo.push('=== MEMO MODE: OFF ===');
+            }
+            debugInfo.push('');
 
             for (let i = 0; i < session.inputSources.length; i++) {
                 const inputSource = session.inputSources[i];

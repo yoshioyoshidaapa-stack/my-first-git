@@ -110,6 +110,7 @@
         let vrMemoMode=false, xButtonPressTime=0, xButtonCooldown=false;
         let vrDebugText=null, vrDebugCanvas=null;
         let rightTriggerPressed=false, rightGripPressed=false;
+        let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
 
         function init() {
@@ -438,6 +439,10 @@
         }
 
         function createMemo(pos,txt) {
+            console.log('=== createMemo START ===');
+            console.log('Position:', pos);
+            console.log('Text:', txt);
+            
             const id=memoCounter++;
             const canvas=document.createElement('canvas');
             const ctx=canvas.getContext('2d');
@@ -476,8 +481,12 @@
             sprite.scale.set(1,canvas.height/canvas.width,1);
             sprite.name=`memo_${id}`;
             scene.add(sprite);
+            console.log('Sprite added to scene:', sprite.name);
+            
             memos.push({id,text:txt,position:pos.clone(),sprite});
+            console.log('Memo added to array, total:', memos.length);
             updateMemoList();
+            console.log('=== createMemo END ===');
         }
 
         function deleteMemo(id) {
@@ -723,22 +732,25 @@
         }
 
         function placeVRMemo() {
-            console.log('placeVRMemo START');
-            const direction=new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            const position=camera.position.clone().add(direction.multiplyScalar(3));
-            console.log('Memo position:', position);
-            pendingMemoPosition=position;
-            if(recognition) {
-                console.log('Starting voice input for VR memo');
-                startVoiceInputForMemo(position);
-            } else {
-                console.log('No voice recognition, creating text memo');
+            console.log('=== placeVRMemo START ===');
+            try {
+                const direction=new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                console.log('Camera world direction:', direction);
+                
+                const position=camera.position.clone().add(direction.multiplyScalar(3));
+                console.log('Calculated memo position:', position);
+                
                 const timestamp=new Date().toLocaleTimeString('ja-JP');
-                createMemo(position,`VRメモ ${timestamp}`);
+                const memoText=`VRメモ ${timestamp}`;
+                console.log('Creating memo with text:', memoText);
+                
+                createMemo(position, memoText);
+                console.log('Memo created successfully, total memos:', memos.length);
+            } catch(error) {
+                console.error('Error in placeVRMemo:', error);
             }
-            pendingMemoPosition=null;
-            console.log('placeVRMemo END');
+            console.log('=== placeVRMemo END ===');
         }
 
         function animate() {

@@ -561,8 +561,12 @@
 
         function handleVRControllers(delta) {
             const session=renderer.xr.getSession();
-            if(!session||!session.inputSources||session.inputSources.length===0) {
-                updateVRDebugPanel('No VR session');
+            if(!session) {
+                updateVRDebugPanel('No VR session\nFOV: '+zoomLevel.toFixed(1));
+                return;
+            }
+            if(!session.inputSources||session.inputSources.length===0) {
+                updateVRDebugPanel('No input sources\nFOV: '+zoomLevel.toFixed(1));
                 return;
             }
             let debugInfo=['VR Debug',''];
@@ -571,6 +575,7 @@
             } else {
                 debugInfo.push('=== MEMO MODE: OFF ===');
             }
+            debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
             debugInfo.push('');
 
             for(let i=0;i<session.inputSources.length;i++) {

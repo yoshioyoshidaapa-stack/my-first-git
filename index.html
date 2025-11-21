@@ -108,7 +108,8 @@
         let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
         let recognition=null, isRecording=false, pendingMemoPosition=null;
         let vrMemoMode=false, xButtonPressTime=0, xButtonCooldown=false;
-        let vrDebugText=null, vrDebugCanvas=null, triggerPressed=false;
+        let vrDebugText=null, vrDebugCanvas=null;
+        let rightTriggerPressed=false, rightGripPressed=false;
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
 
         function init() {
@@ -671,37 +672,43 @@
                         }
                     }
 
+                    // 右トリガー(ボタン0) - メモ配置 or ズームアウト
                     const triggerBtn=gamepad.buttons[0];
-                    if(triggerBtn&&triggerBtn.pressed) {
-                        if(!triggerPressed) {
-                            debugInfo.push(`  Trigger PRESS! vrMemoMode=${vrMemoMode}`);
-                            if(vrMemoMode) {
-                                debugInfo.push(`  *** PLACING MEMO ***`);
-                                placeVRMemo();
-                                debugInfo.push(`  *** MEMO CREATED ***`);
-                                vrMemoMode=false;
-                                debugInfo.push(`  *** MEMO MODE OFF ***`);
-                            } else {
-                                debugInfo.push(`  ZOOM OUT START`);
-                                zoomOut();
-                                debugInfo.push(`  ZOOM OUT DONE`);
-                            }
-                            triggerPressed=true;
+                    const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
+                    
+                    if(isTriggerPressed&&!rightTriggerPressed) {
+                        // トリガーが押された瞬間
+                        debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
+                        if(vrMemoMode) {
+                            debugInfo.push(`  >>> PLACING MEMO <<<`);
+                            placeVRMemo();
+                            vrMemoMode=false;
+                            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
                         } else {
-                            debugInfo.push(`  Trigger HELD (ignored)`);
+                            debugInfo.push(`  >>> ZOOM OUT <<<`);
+                            zoomOut();
                         }
-                    } else {
-                        if(triggerPressed) {
-                            debugInfo.push(`  Trigger RELEASED`);
-                        }
-                        triggerPressed=false;
+                        rightTriggerPressed=true;
+                    } else if(!isTriggerPressed&&rightTriggerPressed) {
+                        // トリガーが離された
+                        debugInfo.push(`  Trigger UP`);
+                        rightTriggerPressed=false;
+                    } else if(isTriggerPressed) {
+                        debugInfo.push(`  Trigger HELD`);
                     }
 
+                    // 右グリップ(ボタン1) - ズームイン
                     const gripBtn=gamepad.buttons[1];
-                    let gripBtnPressed=gripBtn&&gripBtn.pressed;
-                    if(gripBtnPressed) {
-                        debugInfo.push(`  GRIP PRESSED - ZOOM IN`);
+                    const isGripPressed=gripBtn&&gripBtn.pressed;
+                    
+                    if(isGripPressed&&!rightGripPressed) {
+                        debugInfo.push(`  >>> GRIP - ZOOM IN <<<`);
                         zoomIn();
+                        rightGripPressed=true;
+                    } else if(!isGripPressed&&rightGripPressed) {
+                        rightGripPressed=false;
+                    } else if(isGripPressed) {
+                        debugInfo.push(`  Grip HELD`);
                     }
                 }
                 debugInfo.push('');

@@ -332,15 +332,19 @@
         }
 
         function zoomIn() {
+            const oldZoom=zoomLevel;
             zoomLevel=Math.max(MIN_FOV,zoomLevel-5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
+            console.log(`ZOOM IN: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function zoomOut() {
+            const oldZoom=zoomLevel;
             zoomLevel=Math.min(MAX_FOV,zoomLevel+5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
+            console.log(`ZOOM OUT: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function resetCamera() {
@@ -670,25 +674,34 @@
                     const triggerBtn=gamepad.buttons[0];
                     if(triggerBtn&&triggerBtn.pressed) {
                         if(!triggerPressed) {
-                            debugInfo.push(`  Trigger! vrMemoMode=${vrMemoMode}`);
+                            debugInfo.push(`  Trigger PRESS! vrMemoMode=${vrMemoMode}`);
                             if(vrMemoMode) {
+                                debugInfo.push(`  *** PLACING MEMO ***`);
                                 placeVRMemo();
+                                debugInfo.push(`  *** MEMO CREATED ***`);
                                 vrMemoMode=false;
-                                debugInfo.push(`  *** MEMO PLACED ***`);
+                                debugInfo.push(`  *** MEMO MODE OFF ***`);
                             } else {
+                                debugInfo.push(`  ZOOM OUT START`);
                                 zoomOut();
-                                debugInfo.push(`  ZOOM OUT`);
+                                debugInfo.push(`  ZOOM OUT DONE`);
                             }
                             triggerPressed=true;
+                        } else {
+                            debugInfo.push(`  Trigger HELD (ignored)`);
                         }
                     } else {
+                        if(triggerPressed) {
+                            debugInfo.push(`  Trigger RELEASED`);
+                        }
                         triggerPressed=false;
                     }
 
                     const gripBtn=gamepad.buttons[1];
-                    if(gripBtn&&gripBtn.pressed) {
+                    let gripBtnPressed=gripBtn&&gripBtn.pressed;
+                    if(gripBtnPressed) {
+                        debugInfo.push(`  GRIP PRESSED - ZOOM IN`);
                         zoomIn();
-                        debugInfo.push(`  ZOOM IN`);
                     }
                 }
                 debugInfo.push('');
@@ -698,17 +711,22 @@
         }
 
         function placeVRMemo() {
+            console.log('placeVRMemo START');
             const direction=new THREE.Vector3();
             camera.getWorldDirection(direction);
             const position=camera.position.clone().add(direction.multiplyScalar(3));
+            console.log('Memo position:', position);
             pendingMemoPosition=position;
             if(recognition) {
+                console.log('Starting voice input for VR memo');
                 startVoiceInputForMemo(position);
             } else {
+                console.log('No voice recognition, creating text memo');
                 const timestamp=new Date().toLocaleTimeString('ja-JP');
                 createMemo(position,`VRメモ ${timestamp}`);
             }
             pendingMemoPosition=null;
+            console.log('placeVRMemo END');
         }
 
         function animate() {

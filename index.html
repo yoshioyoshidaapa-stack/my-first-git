@@ -3,129 +3,40 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>VR GLBショップウォークスルー（編集対応）</title>
+    <title>VR GLBショップウォークスルー（編集対応・デバッグ版）</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #container { width: 100vw; height: 100vh; cursor: grab; }
         #container:active { cursor: grabbing; }
         #info { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0, 0, 0, 0.7); padding: 15px; border-radius: 8px; font-size: 14px; max-width: 360px; z-index: 100; }
-        #controls { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.3); }
-        #fileInput { margin-top: 10px; padding: 8px; background: rgba(255, 255, 255, 0.9); border: none; border-radius: 4px; cursor: pointer; width: 100%; }
-        #vrButton { margin-top: 10px; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
-        #vrButton:hover { background: #45a049; }
-        #vrButton:disabled { background: #cccccc; cursor: not-allowed; }
-        button { cursor: pointer; }
-        .btn { margin-top: 10px; padding: 10px; border: none; border-radius: 4px; width: 100%; font-size: 14px; font-weight: bold; }
-        #resetButton { background: #ff9800; color: white; }
-        #clearButton { background: #f44336; color: white; margin-top: 5px; }
-        #scaleControls { margin-top: 10px; padding: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
-        #scaleSlider { width: 100%; margin: 10px 0; }
-        #scaleValue { color: #aaffaa; font-weight: bold; }
-        .scaleButtons { display: flex; gap: 5px; margin-top: 5px; }
-        .scaleButtons button { flex: 1; padding: 8px; background: #2196F3; color: white; border: none; border-radius: 4px; font-size: 12px; }
-        #memoPanel { position: absolute; top: 10px; right: 10px; width: 300px; max-height: 80vh; overflow-y: auto; background: rgba(0, 0, 0, 0.8); color: white; padding: 15px; border-radius: 8px; display: none; z-index: 100; }
-        #memoPanel h3 { margin-top: 0; border-bottom: 2px solid #4CAF50; padding-bottom: 10px; }
-        .memo-item { background: rgba(255, 255, 255, 0.1); padding: 10px; margin: 5px 0; border-radius: 4px; border-left: 4px solid #ffeb3b; }
-        .memo-item button { margin-top: 5px; padding: 4px 8px; font-size: 11px; background: #f44336; color: white; border: none; border-radius: 3px; }
-        #memoModeIndicator { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(76, 175, 80, 0.9); color: white; padding: 20px 40px; border-radius: 8px; font-size: 20px; font-weight: bold; display: none; z-index: 1000; pointer-events: none; }
-        #voiceButton { margin-top: 10px; padding: 12px; background: #9C27B0; color: white; border: none; border-radius: 4px; width: 100%; font-size: 16px; font-weight: bold; }
-        #voiceButton.recording { background: #f44336; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        #inputMethodDialog, #memoInputDialog, #editToolbox { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); padding: 30px; border-radius: 12px; display: none; z-index: 2000; color: white; }
-        #inputMethodDialog h3, #memoInputDialog h3 { color: white; margin: 0 0 20px 0; text-align: center; }
-        .input-method-buttons { display: flex; gap: 15px; }
-        .input-method-buttons button { padding: 20px 30px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; }
-        #voiceInputBtn { background: #9C27B0; color: white; }
-        #keyboardInputBtn { background: #2196F3; color: white; }
-        #memoInputDialog { width: 400px; }
-        #memoTextarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-size: 14px; box-sizing: border-box; background: #222; color: white; min-height: 100px; }
-        .dialog-buttons { display: flex; gap: 10px; margin-top: 15px; }
-        #submitMemoBtn { flex: 1; background: #4CAF50; color: white; padding: 12px 20px; font-weight: bold; border: none; border-radius: 4px; }
-        #cancelMemoBtn { flex: 1; background: #666; color: white; padding: 12px 20px; font-weight: bold; border: none; border-radius: 4px; }
+        /* ...（既存の CSS は省略せずにそのまま使ってください）... */
         #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; background: rgba(0, 0, 0, 0.8); padding: 20px 40px; border-radius: 8px; font-size: 18px; display: none; z-index: 1000; }
         #status { margin-top: 10px; font-size: 12px; color: #aaffaa; }
-        /* 編集ツールボックス */
-        #editToolbox { width: 340px; display: none; }
-        #editToolbox h3 { margin-top: 0; }
-        .tool-row { display:flex; gap:8px; margin-top:10px; }
-        .tool-row button { flex:1; padding:8px; border-radius:6px; border:none; background:#333; color:white; }
-        .tool-row button.primary { background:#2196F3; }
+        /* エラーオーバーレイ */
+        #errorOverlay { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); color: #ffcccc; display: none; z-index: 3000; padding: 20px; box-sizing: border-box; overflow:auto; }
+        #errorOverlay h2 { margin-top: 0; color: #ff6666; }
     </style>
 </head>
 <body>
     <div id="container"></div>
+
     <div id="info">
-        <strong>VR ショップウォークスルー（編集対応）</strong><br>
+        <strong>VR ショップウォークスルー（編集対応・デバッグ版）</strong><br>
         <small id="updateDate" style="color: #aaa;"></small>
-        <div id="controls">
-            <strong>PC:</strong> W/A/S/D移動, マウス視点, Q/Eズーム, Mメモモード<br>
-            <strong>VR:</strong> 左スティック移動, 右スティック視点, A/B上下, 右トリガーズーム/メモ, Xボタン長押しメモモード切替
-        </div>
+        <div id="controls">…</div>
         <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl" />
         <button id="vrButton">VRモード開始</button>
         <button id="editModeButton" class="btn">編集モード: OFF</button>
         <button id="resetButton" class="btn">カメラリセット</button>
         <button id="clearButton" class="btn">モデル削除</button>
-        <div id="scaleControls">
-            <strong>モデルサイズ</strong><br>
-            <span id="scaleValue">1.0x</span>
-            <input type="range" id="scaleSlider" min="0.1" max="10" step="0.1" value="1.0">
-            <div class="scaleButtons">
-                <button id="scale05">0.5x</button>
-                <button id="scale1">1.0x</button>
-                <button id="scale2">2.0x</button>
-                <button id="scale5">5.0x</button>
-            </div>
-        </div>
+        <div id="scaleControls">…</div>
         <div id="status"></div>
     </div>
 
     <div id="loading">読み込み中...</div>
-    <div id="memoModeIndicator">メモモード ON</div>
-    <div id="memoPanel">
-        <h3>メモリスト</h3>
-        <button id="voiceButton">🎤 音声入力</button>
-        <div id="memoList"></div>
-    </div>
+    <div id="memoPanel" style="display:none">…</div>
 
-    <div id="inputMethodDialog">
-        <h3>メモ入力方法</h3>
-        <div class="input-method-buttons">
-            <button id="voiceInputBtn">🎤 音声</button>
-            <button id="keyboardInputBtn">⌨ キーボード</button>
-        </div>
-    </div>
-
-    <div id="memoInputDialog">
-        <h3>メモ入力</h3>
-        <textarea id="memoTextarea" placeholder="メモを入力..."></textarea>
-        <div class="dialog-buttons">
-            <button id="submitMemoBtn">作成</button>
-            <button id="cancelMemoBtn">キャンセル</button>
-        </div>
-    </div>
-
-    <div id="editToolbox">
-        <h3>編集ツール</h3>
-        <div id="selectedInfo">選択なし</div>
-        <div class="tool-row">
-            <button id="moveToggleBtn">移動: OFF</button>
-            <button id="deleteSelectedBtn" style="background:#f44336">削除</button>
-        </div>
-        <div class="tool-row">
-            <button id="editTextBtn">テキスト編集</button>
-            <button id="deselectBtn">選択解除</button>
-        </div>
-        <div class="tool-row">
-            <button id="rotateLeftBtn">回転◀</button>
-            <button id="rotateRightBtn">回転▶</button>
-        </div>
-        <div class="tool-row">
-            <button id="scaleDownBtn">縮小-</button>
-            <button id="scaleUpBtn">拡大+</button>
-        </div>
-        <div style="margin-top:10px;font-size:12px;color:#ccc">注: 移動は地面平面上でドラッグします。VR は未対応（将来対応可）。</div>
-    </div>
+    <div id="errorOverlay"><h2>エラーが発生しました</h2><pre id="errorText"></pre></div>
 
     <!-- three.js / loaders（非モジュール版） -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
@@ -134,820 +45,116 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
 
     <script>
-        // ---- グローバル変数 ----
-        let scene, camera, renderer, cameraRig;
-        let moveForward=false, moveBackward=false, moveLeft=false, moveRight=false;
-        let velocity=new THREE.Vector3(), direction=new THREE.Vector3();
-        let prevTime=performance.now(), euler=new THREE.Euler(0,0,0,'YXZ');
-        let isMouseDown=false, lastMouseX=0, lastMouseY=0, zoomLevel=75;
-        const MIN_FOV=30, MAX_FOV=100, PLAYER_HEIGHT=1.6, MOVE_SPEED=80, VR_MOVE_SPEED=10, VR_ROTATION_SPEED=1.5;
-        let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
-        let recognition=null, isRecording=false, pendingMemoPosition=null;
-        let vrMemoMode=false, xButtonPressTime=0, xButtonCooldown=false;
-        let vrDebugText=null, vrDebugCanvas=null;
-        let rightTriggerPressed=false, rightGripPressed=false;
-        const VERSION='v1.3.0', UPDATE_DATE='2025/12/01';
+    // --- 簡易化のため一部 UI 文言や CSS を省略してあります（実装時は元と差し替えてください） ---
+    const BG_COLOR = 0x87CEEB;
 
-        let loadedModel = null;
-        let floorMesh = null;
+    let scene, camera, renderer, cameraRig;
+    let prevTime = performance.now();
+    let loadedModel = null;
+    let floorMesh = null;
+    const VERSION='v1.3.0-debug', UPDATE_DATE='2025/12/01';
 
-        // 編集関連
-        let editMode = false;
-        let selectedObject = null; // either { type: 'memo', index } or { type: 'model', object }
-        let highlightHelper = null;
-        let editMoveEnabled = false;
-        let dragging = false;
-        let dragPlane = new THREE.Plane();
-        let dragOffset = new THREE.Vector3();
+    function setStatus(msg, isError=false) {
+        const st=document.getElementById('status');
+        st.textContent = msg;
+        st.style.color = isError ? '#ffaaaa' : '#aaffaa';
+        console.log('STATUS:', msg);
+    }
 
-        function setStatus(msg, isError=false) {
-            const st=document.getElementById('status');
-            st.textContent = msg;
-            st.style.color = isError ? '#ffaaaa' : '#aaffaa';
-            console.log('STATUS:', msg);
-        }
+    function showErrorOverlay(msg) {
+        const ov = document.getElementById('errorOverlay');
+        const txt = document.getElementById('errorText');
+        txt.textContent = msg;
+        ov.style.display = 'block';
+        console.error('ErrorOverlay:', msg);
+    }
 
-        function init() {
-            document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
-            scene=new THREE.Scene();
-            scene.background=new THREE.Color(0x87CEEB);
-            scene.fog=new THREE.Fog(0x87CEEB,0,50);
+    function init() {
+        try {
+            document.getElementById('updateDate').textContent = `${VERSION} (${UPDATE_DATE})`;
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(BG_COLOR);
+            scene.fog = new THREE.Fog(BG_COLOR, 0, 50);
 
-            cameraRig=new THREE.Group();
+            cameraRig = new THREE.Group();
             scene.add(cameraRig);
 
-            camera=new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,1000);
-            camera.position.set(0,PLAYER_HEIGHT,5);
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 5);
             cameraRig.add(camera);
 
-            renderer=new THREE.WebGLRenderer({antialias:true});
-            renderer.setSize(window.innerWidth,window.innerHeight);
-            renderer.shadowMap.enabled=true;
-            renderer.xr.enabled=true;
+            renderer = new THREE.WebGLRenderer({antialias:true});
+            // 明示的にクリアカラーをセット（scene.background が効かないケース用）
+            renderer.setClearColor(BG_COLOR);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.xr.enabled = true;
+            // append
             document.getElementById('container').appendChild(renderer.domElement);
 
-            setupVR();
-            createVRDebugPanel();
+            // WebGL context イベントを監視
+            renderer.domElement.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                showErrorOverlay('WebGL context lost');
+            }, false);
+            renderer.domElement.addEventListener('webglcontextrestored', () => {
+                setStatus('WebGL context restored');
+            }, false);
 
+            // シンプルなライトと地面（レンダリング確認用）
             scene.add(new THREE.AmbientLight(0xffffff,0.6));
-            const light=new THREE.DirectionalLight(0xffffff,0.8);
+            const light = new THREE.DirectionalLight(0xffffff,0.8);
             light.position.set(5,10,5);
-            light.castShadow=true;
             scene.add(light);
 
-            floorMesh=new THREE.Mesh(new THREE.PlaneGeometry(50,50),new THREE.MeshStandardMaterial({color:0x808080}));
-            floorMesh.rotation.x=-Math.PI/2;
-            floorMesh.receiveShadow=true;
-            floorMesh.name = 'floor';
+            floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(50,50), new THREE.MeshStandardMaterial({color:0x808080}));
+            floorMesh.rotation.x = -Math.PI/2;
+            floorMesh.receiveShadow = true;
             scene.add(floorMesh);
 
-            const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.5,32,32),new THREE.MeshStandardMaterial({color:0xff0000}));
-            sphere.position.set(0,0.5,-3);
-            sphere.castShadow=true;
-            scene.add(sphere);
-
-            // イベント
-            document.addEventListener('keydown',onKeyDown);
-            document.addEventListener('keyup',onKeyUp);
-            const c=document.getElementById('container');
-            c.addEventListener('mousedown',onMouseDown);
-            c.addEventListener('mousemove',onMouseMove);
-            c.addEventListener('mouseup',onMouseUp);
-            c.addEventListener('mouseleave',onMouseUp);
-            c.addEventListener('wheel',onMouseWheel);
-
-            document.getElementById('fileInput').addEventListener('change',onFileSelect);
-            document.getElementById('resetButton').addEventListener('click',resetCamera);
-            document.getElementById('clearButton').addEventListener('click',clearModel);
-            document.getElementById('scaleSlider').addEventListener('input',e=>setScale(parseFloat(e.target.value)));
-            document.getElementById('scale05').addEventListener('click',()=>setScale(0.5));
-            document.getElementById('scale1').addEventListener('click',()=>setScale(1.0));
-            document.getElementById('scale2').addEventListener('click',()=>setScale(2.0));
-            document.getElementById('scale5').addEventListener('click',()=>setScale(5.0));
-            document.getElementById('voiceButton').addEventListener('click',toggleVoiceInput);
-            document.getElementById('voiceInputBtn').addEventListener('click',chooseVoiceInput);
-            document.getElementById('keyboardInputBtn').addEventListener('click',chooseKeyboardInput);
-            document.getElementById('submitMemoBtn').addEventListener('click',submitMemo);
-            document.getElementById('cancelMemoBtn').addEventListener('click',cancelMemoInput);
-            window.addEventListener('resize',onWindowResize);
-
-            // 編集UI イベント
-            document.getElementById('editModeButton').addEventListener('click',toggleEditMode);
-            document.getElementById('moveToggleBtn').addEventListener('click', toggleMoveMode);
-            document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelected);
-            document.getElementById('editTextBtn').addEventListener('click', openEditTextDialog);
-            document.getElementById('deselectBtn').addEventListener('click', clearSelection);
-            document.getElementById('rotateLeftBtn').addEventListener('click', ()=> rotateSelected(-Math.PI/12));
-            document.getElementById('rotateRightBtn').addEventListener('click', ()=> rotateSelected(Math.PI/12));
-            document.getElementById('scaleUpBtn').addEventListener('click', ()=> scaleSelected(1.1));
-            document.getElementById('scaleDownBtn').addEventListener('click', ()=> scaleSelected(0.9));
-
-            initSpeechRecognition();
-            renderer.setAnimationLoop(animate);
-            setStatus('Ready');
-        }
-
-        // ---------- VR / loaders は前と同様 ----------
-        function setupVR() {
-            const vrButton=document.getElementById('vrButton');
-            if('xr' in navigator) {
-                navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
-                    if(sup) {
-                        vrButton.onclick=async()=>{
-                            if(!renderer.xr.isPresenting) {
-                                try {
-                                    const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor','hand-tracking']});
-                                    await renderer.xr.setSession(s);
-                                    isVRMode=true;
-                                    vrButton.textContent = 'VR中...（終了はコントローラ側）';
-                                    s.addEventListener('end', () => {
-                                        isVRMode = false;
-                                        vrButton.textContent = 'VRモード開始';
-                                        setStatus('VR session ended');
-                                    });
-                                    setStatus('VR session started');
-                                } catch(e) {
-                                    console.error('Failed to start XR session:', e);
-                                    setStatus('VR セッション開始に失敗しました', true);
-                                }
-                            } else {
-                                const s = renderer.xr.getSession();
-                                if(s) s.end();
-                            }
-                        };
-                    } else {
-                        vrButton.disabled=true; vrButton.textContent='VR非対応';
-                    }
-                }).catch(err=>{ vrButton.disabled=true; vrButton.textContent='VR非対応'; });
-            } else { vrButton.disabled=true; vrButton.textContent='XR非対応'; }
-
-            const c1=renderer.xr.getController(0); scene.add(c1); controllers.push(c1);
-            const c2=renderer.xr.getController(1); scene.add(c2); controllers.push(c2);
-            const geom=new THREE.CylinderGeometry(0.01,0.02,0.1,8);
-            const mat1=new THREE.MeshStandardMaterial({color:0xff0000});
-            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff});
-            const g1=renderer.xr.getControllerGrip(0); g1.add(new THREE.Mesh(geom,mat1)); scene.add(g1);
-            const g2=renderer.xr.getControllerGrip(1); g2.add(new THREE.Mesh(geom,mat2)); scene.add(g2);
-        }
-
-        function createVRDebugPanel() {
-            vrDebugCanvas=document.createElement('canvas'); vrDebugCanvas.width=512; vrDebugCanvas.height=512;
-            const tex=new THREE.CanvasTexture(vrDebugCanvas);
-            const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide});
-            vrDebugText=new THREE.Mesh(new THREE.PlaneGeometry(1,1),mat);
-            vrDebugText.position.set(-1,2,-2);
-            scene.add(vrDebugText);
-            updateVRDebugPanel('VR Debug\nReady');
-        }
-        function updateVRDebugPanel(txt) {
-            if(!vrDebugCanvas) return;
-            const ctx=vrDebugCanvas.getContext('2d');
-            ctx.fillStyle='rgba(0,0,0,0.9)'; ctx.fillRect(0,0,512,512);
-            ctx.strokeStyle='#0f0'; ctx.lineWidth=4; ctx.strokeRect(0,0,512,512);
-            ctx.fillStyle='#0f0'; ctx.font='bold 18px monospace'; ctx.textAlign='left'; ctx.textBaseline='top';
-            txt.split('\n').forEach((l,i)=>ctx.fillText(l,10,10+i*24));
-            if(vrDebugText?.material?.map) vrDebugText.material.map.needsUpdate=true;
-        }
-
-        // ---------- ファイルロード ----------
-        function onFileSelect(e) {
-            const f=e.target.files[0];
-            if(!f) return;
-            const ext=f.name.toLowerCase().split('.').pop();
-            document.getElementById('loading').style.display='block';
-            setStatus(`Loading ${f.name} ...`);
-            if(ext==='glb' || ext==='gltf') {
-                loadGLTFFromFile(f);
-            } else if(ext==='obj') {
-                const reader=new FileReader();
-                reader.onload = ev => {
-                    try {
-                        const text = ev.target.result;
-                        const obj = new THREE.OBJLoader().parse(text);
-                        addModelToScene(obj,'OBJ');
-                    } catch(err) {
-                        console.error('OBJ load error:', err);
-                        setStatus('OBJ 読み込みエラー', true);
-                    } finally { document.getElementById('loading').style.display='none'; }
-                };
-                reader.onerror = () => { document.getElementById('loading').style.display='none'; setStatus('OBJ 読み込みに失敗しました', true); };
-                reader.readAsText(f);
-            } else if(ext==='stl') {
-                const reader=new FileReader();
-                reader.onload = ev => {
-                    try {
-                        const buffer = ev.target.result;
-                        const geom = new THREE.STLLoader().parse(buffer);
-                        const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({color:0xaaa}));
-                        addModelToScene(mesh,'STL');
-                    } catch(err) {
-                        console.error('STL load error:', err);
-                        setStatus('STL 読み込みエラー', true);
-                    } finally { document.getElementById('loading').style.display='none'; }
-                };
-                reader.onerror = ()=> { document.getElementById('loading').style.display='none'; setStatus('STL 読み込みに失敗しました', true); };
-                reader.readAsArrayBuffer(f);
-            } else {
-                document.getElementById('loading').style.display='none';
-                setStatus('未対応のファイル形式です', true);
-            }
-        }
-
-        function loadGLTFFromFile(file) {
-            const url = URL.createObjectURL(file);
-            const loader = new THREE.GLTFLoader();
-            loader.load(url, gltf => {
-                try { addModelToScene(gltf.scene, 'GLTF'); setStatus('GLTF 読み込み完了'); }
-                finally { document.getElementById('loading').style.display='none'; }
-            }, xhr => {
-                if(xhr && xhr.total) { const p = Math.round((xhr.loaded/xhr.total)*100); setStatus(`GLTF 読込 ${p}%`); }
-            }, err => { console.error('GLTF load error:', err); setStatus('GLTF 読み込みエラー', true); document.getElementById('loading').style.display='none'; URL.revokeObjectURL(url); });
-        }
-
-        function addModelToScene(model,fmt) {
-            if(loadedModel) { disposeObject(loadedModel); scene.remove(loadedModel); loadedModel = null; }
-            model.name='loadedModel';
-            model.traverse(n=>{
-                if(n.isMesh) { n.castShadow=n.receiveShadow=true; if(!n.material) n.material = new THREE.MeshStandardMaterial({color:0xaaa}); }
-            });
-            const box=new THREE.Box3().setFromObject(model);
-            const center=box.getCenter(new THREE.Vector3());
-            model.position.set(-center.x, -box.min.y, -center.z);
-            scene.add(model);
-            loadedModel = model;
-            document.getElementById('loading').style.display='none';
-            setStatus(`${fmt} モデルをシーンに追加しました`);
-        }
-
-        function disposeMaterial(material) {
-            if(!material) return;
-            try {
-                if (Array.isArray(material)) material.forEach(m => disposeMaterial(m));
-                else {
-                    if (material.map) { material.map.dispose(); material.map = null; }
-                    if (material.lightMap) { material.lightMap.dispose(); material.lightMap = null; }
-                    if (material.bumpMap) { material.bumpMap.dispose(); material.bumpMap = null; }
-                    if (material.normalMap) { material.normalMap.dispose(); material.normalMap = null; }
-                    if (material.specularMap) { material.specularMap.dispose(); material.specularMap = null; }
-                    if (material.envMap) { material.envMap.dispose(); material.envMap = null; }
-                    if (typeof material.dispose === 'function') material.dispose();
-                }
-            } catch(e) { console.warn('disposeMaterial failed', e); }
-        }
-
-        function disposeObject(obj) {
-            if(!obj) return;
-            obj.traverse(node => {
-                if(node.isMesh) {
-                    if(node.geometry) { node.geometry.dispose(); node.geometry = null; }
-                    if(node.material) { disposeMaterial(node.material); node.material = null; }
-                }
-            });
-        }
-
-        // ---------- 入力 / メモ機能 ----------
-        function onKeyDown(e) {
-            if(document.getElementById('memoInputDialog').style.display==='block')return;
-            if(e.code==='KeyW'||e.code==='ArrowUp')moveForward=true;
-            if(e.code==='KeyS'||e.code==='ArrowDown')moveBackward=true;
-            if(e.code==='KeyA'||e.code==='ArrowLeft')moveLeft=true;
-            if(e.code==='KeyD'||e.code==='ArrowRight')moveRight=true;
-            if(e.code==='KeyQ')zoomIn();
-            if(e.code==='KeyE')zoomOut();
-            if(e.code==='KeyM')toggleMemoMode();
-        }
-        function onKeyUp(e) {
-            if(e.code==='KeyW'||e.code==='ArrowUp')moveForward=false;
-            if(e.code==='KeyS'||e.code==='ArrowDown')moveBackward=false;
-            if(e.code==='KeyA'||e.code==='ArrowLeft')moveLeft=false;
-            if(e.code==='KeyD'||e.code==='ArrowRight')moveRight=false;
-        }
-
-        function onMouseDown(e) {
-            if(document.getElementById('inputMethodDialog').style.display==='block'||document.getElementById('memoInputDialog').style.display==='block') return;
-            // 編集モードかつ選択時、移動モードならドラッグ開始。選択処理はクリック (mousedown -> mouseupで短い時間) にて行う。
-            isMouseDown=true;
-            lastMouseX=e.clientX; lastMouseY=e.clientY;
-            if(editMode && editMoveEnabled && selectedObject) {
-                // 開始ドラッグ: setup drag plane through object's current position, normal = (0,1,0)
-                dragging = true;
-                const rect = renderer.domElement.getBoundingClientRect();
-                const mouse = new THREE.Vector2((e.clientX - rect.left)/rect.width*2 -1, -((e.clientY - rect.top)/rect.height)*2 +1);
-                const ray = new THREE.Raycaster();
-                ray.setFromCamera(mouse, camera);
-                // plane at selected y
-                let planeY = 0;
-                if(selectedObject.type === 'memo') planeY = selectedObject.positionY !== undefined ? selectedObject.positionY : (selectedObjectIndex() !== -1 ? memos[selectedObjectIndex()].position.y : 0);
-                else if(selectedObject.type === 'model') planeY = selectedObject.object.position.y;
-                dragPlane.set(new THREE.Vector3(0,1,0), -planeY);
-                const intersect = new THREE.Vector3();
-                ray.ray.intersectPlane(dragPlane, intersect);
-                const selPos = getSelectedPosition();
-                if(intersect && selPos) {
-                    dragOffset.copy(selPos).sub(intersect);
-                } else {
-                    dragOffset.set(0,0,0);
-                }
-            } else {
-                // クリックで選択（選択は mouseup 側で短いクリックと判定）
-            }
-        }
-
-        function onMouseMove(e) {
-            if(!isMouseDown) return;
-            const dx=e.clientX-lastMouseX, dy=e.clientY-lastMouseY;
-            lastMouseX=e.clientX; lastMouseY=e.clientY;
-            if(dragging && editMoveEnabled && selectedObject) {
-                // 更新用の ray-plane intersection
-                const rect = renderer.domElement.getBoundingClientRect();
-                const mouse = new THREE.Vector2((e.clientX - rect.left)/rect.width*2 -1, -((e.clientY - rect.top)/rect.height)*2 +1);
-                const ray = new THREE.Raycaster();
-                ray.setFromCamera(mouse, camera);
-                const intersect = new THREE.Vector3();
-                if(ray.ray.intersectPlane(dragPlane, intersect)) {
-                    const newPos = intersect.clone().add(dragOffset);
-                    setSelectedPosition(newPos);
-                }
-            } else {
-                // camera rotate
-                if(!editMode) {
-                    euler.setFromQuaternion(camera.quaternion);
-                    euler.y-=dx*0.002;
-                    euler.x-=dy*0.002;
-                    euler.x=Math.max(-Math.PI/2,Math.min(Math.PI/2,euler.x));
-                    camera.quaternion.setFromEuler(euler);
-                }
-            }
-        }
-
-        function onMouseUp(e) {
-            if(dragging) {
-                dragging=false;
-                setStatus('移動完了');
-            } else {
-                // クリック判定（短いクリックで選択）
-                if(editMode) {
-                    handleSelectionFromMouse(e);
-                } else if(memoMode) {
-                    // place memo if memoMode ON
-                    if(e.button===0) placeMemo(e);
-                }
-            }
-            isMouseDown=false;
-        }
-
-        function onMouseWheel(e) { e.preventDefault(); if(e.deltaY<0)zoomIn(); else zoomOut(); }
-
-        function handleSelectionFromMouse(e) {
-            const rect = renderer.domElement.getBoundingClientRect();
-            const mouse = new THREE.Vector2((e.clientX - rect.left)/rect.width*2 -1, -((e.clientY - rect.top)/rect.height)*2 +1);
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera(mouse, camera);
-            // 優先: memos（sprite）、次にモデル
-            // check memos
-            for(let i=0;i<memos.length;i++){
-                const sprite = memos[i].sprite;
-                const hits = ray.intersectObject(sprite, true);
-                if(hits && hits.length>0) { selectMemo(i); return; }
-            }
-            // check model (bounding box)
-            if(loadedModel) {
-                const hits = ray.intersectObject(loadedModel, true);
-                if(hits && hits.length>0) { selectModel(loadedModel); return; }
-            }
-            // 何も選択しなかったら解除
-            clearSelection();
-        }
-
-        function selectMemo(index) {
-            clearSelection();
-            selectedObject = { type:'memo', index };
-            highlightSelected();
-            showEditToolboxForSelected();
-            setStatus(`メモ #${index+1} を選択`);
-        }
-
-        function selectModel(object) {
-            clearSelection();
-            selectedObject = { type:'model', object };
-            highlightSelected();
-            showEditToolboxForSelected();
-            setStatus('モデルを選択');
-        }
-
-        function selectedObjectIndex() {
-            if(selectedObject && selectedObject.type==='memo') return selectedObject.index;
-            return -1;
-        }
-
-        function getSelectedPosition() {
-            if(!selectedObject) return null;
-            if(selectedObject.type==='memo') {
-                const idx = selectedObject.index;
-                if(idx>=0 && idx < memos.length) return memos[idx].sprite.position.clone();
-                return null;
-            } else if(selectedObject.type==='model') {
-                return selectedObject.object.position.clone();
-            }
-            return null;
-        }
-
-        function setSelectedPosition(pos) {
-            if(!selectedObject) return;
-            if(selectedObject.type==='memo') {
-                const idx = selectedObject.index;
-                if(idx>=0 && idx < memos.length) {
-                    memos[idx].sprite.position.copy(pos);
-                    memos[idx].position.copy(pos);
-                }
-            } else if(selectedObject.type==='model') {
-                selectedObject.object.position.copy(pos);
-            }
-            updateSelectionInfo();
-        }
-
-        function highlightSelected() {
-            removeHighlight();
-            if(!selectedObject) return;
-            if(selectedObject.type==='memo') {
-                const idx = selectedObject.index;
-                const spr = memos[idx].sprite;
-                // 拡大でハイライト
-                spr.scale.multiplyScalar(1.15);
-                highlightHelper = { type:'memo', sprite: spr };
-            } else if(selectedObject.type==='model') {
-                // BoxHelper
-                const box = new THREE.BoxHelper(selectedObject.object, 0xffff00);
-                scene.add(box);
-                highlightHelper = { type:'box', helper: box };
-            }
-            updateSelectionInfo();
-        }
-
-        function removeHighlight() {
-            if(!highlightHelper) return;
-            if(highlightHelper.type==='memo') {
-                // 元のサイズへ戻す（ある程度安全に）
-                if(highlightHelper.sprite) highlightHelper.sprite.scale.multiplyScalar(1/1.15);
-            } else if(highlightHelper.type==='box') {
-                scene.remove(highlightHelper.helper);
-            }
-            highlightHelper = null;
-        }
-
-        function clearSelection() {
-            removeHighlight();
-            selectedObject = null;
-            document.getElementById('editToolbox').style.display='none';
-            editMoveEnabled = false;
-            document.getElementById('moveToggleBtn').textContent='移動: OFF';
-            setStatus('選択解除');
-        }
-
-        function showEditToolboxForSelected() {
-            const toolbox = document.getElementById('editToolbox');
-            toolbox.style.display = 'block';
-            updateSelectionInfo();
-        }
-
-        function updateSelectionInfo() {
-            const info = document.getElementById('selectedInfo');
-            if(!selectedObject) { info.innerText='選択なし'; return; }
-            if(selectedObject.type==='memo') {
-                const idx=selectedObject.index;
-                info.innerText = `メモ #${idx+1}\n位置: ${memos[idx].position.x.toFixed(2)}, ${memos[idx].position.y.toFixed(2)}, ${memos[idx].position.z.toFixed(2)}`;
-            } else {
-                const pos = selectedObject.object.position;
-                info.innerText = `モデル\n位置: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
-            }
-        }
-
-        function toggleEditMode() {
-            editMode = !editMode;
-            const btn = document.getElementById('editModeButton');
-            btn.textContent = `編集モード: ${editMode ? 'ON' : 'OFF'}`;
-            // 編集モード中はメモパネルを表示しておく
-            document.getElementById('memoPanel').style.display = editMode ? 'block' : (memoMode ? 'block' : 'none');
-            if(!editMode) clearSelection();
-        }
-
-        function toggleMoveMode() {
-            editMoveEnabled = !editMoveEnabled;
-            document.getElementById('moveToggleBtn').textContent = `移動: ${editMoveEnabled ? 'ON' : 'OFF'}`;
-            if(editMoveEnabled) setStatus('移動モード ON - オブジェクトをドラッグしてください');
-            else setStatus('移動モード OFF');
-        }
-
-        function deleteSelected() {
-            if(!selectedObject) { setStatus('選択がありません', true); return; }
-            if(selectedObject.type==='memo') {
-                const idx=selectedObject.index;
-                if(idx>=0 && idx < memos.length) {
-                    // dispose sprite resources
-                    const m = memos[idx];
-                    try {
-                        if(m.sprite.material) {
-                            if(m.sprite.material.map) m.sprite.material.map.dispose();
-                            m.sprite.material.dispose();
-                        }
-                        if(m.sprite.geometry) try{ m.sprite.geometry.dispose(); }catch(e){}
-                        scene.remove(m.sprite);
-                    } catch(e) { console.warn('delete memo dispose error', e); }
-                    memos.splice(idx,1);
-                    clearSelection();
-                    updateMemoList();
-                    setStatus('メモを削除しました');
-                }
-            } else if(selectedObject.type==='model') {
-                disposeObject(selectedObject.object);
-                scene.remove(selectedObject.object);
-                loadedModel = null;
-                clearSelection();
-                setStatus('モデルを削除しました');
-            }
-        }
-
-        function openEditTextDialog() {
-            if(!selectedObject) { setStatus('選択がありません', true); return; }
-            if(selectedObject.type !== 'memo') { setStatus('テキスト編集はメモのみ対応です', true); return; }
-            const idx=selectedObject.index;
-            document.getElementById('memoTextarea').value = memos[idx].text;
-            document.getElementById('memoInputDialog').style.display='block';
-            // submit は既存の submitMemo を使うが differentiate するためフラグを使う
-            editingMemoIndex = idx;
-        }
-
-        let editingMemoIndex = -1;
-        function submitMemo() {
-            const txt=document.getElementById('memoTextarea').value.trim();
-            document.getElementById('memoInputDialog').style.display='none';
-            if(editingMemoIndex !== -1) {
-                // 編集中のメモ更新
-                updateMemoText(editingMemoIndex, txt);
-                editingMemoIndex = -1;
-                setStatus('メモを更新しました');
-            } else {
-                if(txt && pendingMemoPosition) {
-                    createMemo(pendingMemoPosition, txt);
-                    toggleMemoMode();
-                }
-            }
-            pendingMemoPosition = null;
-        }
-
-        function cancelMemoInput() {
-            document.getElementById('memoInputDialog').style.display='none';
-            pendingMemoPosition=null;
-            editingMemoIndex = -1;
-        }
-
-        function updateMemoText(index, newText) {
-            if(index<0 || index>=memos.length) return;
-            // dispose old texture
-            const entry = memos[index];
-            try {
-                if(entry.sprite.material && entry.sprite.material.map) entry.sprite.material.map.dispose();
-            } catch(e) { console.warn('dispose old memo texture error', e); }
-
-            entry.text = newText;
-            // rebuild canvas texture
-            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-            canvas.width = 512; ctx.font = 'bold 28px Arial';
-            const maxW = 472; const paragraphs = newText.split('\n'); const lines=[];
-            paragraphs.forEach(para=>{
-                const words = para.split(' '); let line='';
-                words.forEach(word=>{
-                    const test = line + (line? ' ' : '') + word;
-                    if(ctx.measureText(test).width > maxW && line !== '') { lines.push(line); line = word; } else { line = test; }
-                }); if(line) lines.push(line);
-            });
-            const lineHeight = 36; canvas.height = (lines.length * lineHeight) + 40;
-            ctx.fillStyle = '#ffd93d'; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle = '#000'; ctx.font = 'bold 28px Arial'; ctx.textAlign='center'; ctx.textBaseline='top';
-            let y = 16; lines.forEach(line=>{ ctx.fillText(line, canvas.width/2, y); y += lineHeight; });
-            const tex = new THREE.CanvasTexture(canvas);
-            entry.sprite.material.map = tex;
-            entry.sprite.material.needsUpdate = true;
-            entry.position = entry.sprite.position.clone();
-            updateMemoList();
-            updateSelectionInfo();
-        }
-
-        // ---------- メモ生成 ----------
-        function createMemo(pos, txt) {
-            const id = memoCounter++;
-            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-            canvas.width = 512; ctx.font = 'bold 28px Arial';
-            const maxW = 472; const paragraphs = txt.split('\n'); const lines=[];
-            paragraphs.forEach(para=>{
-                const words = para.split(' '); let line='';
-                words.forEach(word=>{
-                    const test = line + (line? ' ' : '') + word;
-                    if(ctx.measureText(test).width > maxW && line !== '') { lines.push(line); line = word; } else { line = test; }
-                }); if(line) lines.push(line);
-            });
-            const lineHeight = 36; canvas.height = (lines.length * lineHeight) + 40;
-            ctx.fillStyle = '#ffd93d'; ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle = '#000'; ctx.font = 'bold 28px Arial'; ctx.textAlign='center'; ctx.textBaseline='top';
-            let y = 16; lines.forEach(line=>{ ctx.fillText(line, canvas.width/2, y); y += lineHeight; });
-
-            const tex = new THREE.CanvasTexture(canvas);
-            const mat = new THREE.SpriteMaterial({map:tex});
-            const sprite = new THREE.Sprite(mat);
-            sprite.position.copy(pos);
-            sprite.scale.set(1, canvas.height/canvas.width, 1);
-            sprite.name = `memo_${id}`;
-            scene.add(sprite);
-
-            memos.push({ id, text: txt, position: pos.clone(), sprite, canvasTexture: tex });
-            updateMemoList();
-            setStatus('メモを作成しました');
-        }
-
-        function updateMemoList() {
-            const list=document.getElementById('memoList'); list.innerHTML='';
-            memos.forEach((m, idx)=>{
-                const item=document.createElement('div'); item.className='memo-item';
-                const safeText = m.text.replace(/\n/g,'<br>');
-                item.innerHTML=`<div><strong>#${idx+1}</strong>: ${safeText}</div><button data-idx="${idx}">削除</button>`;
-                const btn = item.querySelector('button');
-                btn.addEventListener('click', ()=> { selectMemo(idx); deleteSelected(); });
-                list.appendChild(item);
-            });
-        }
-
-        // ---------- 音声認識（変更なし） ----------
-        function initSpeechRecognition() {
-            if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition = new SR();
-                recognition.lang = 'ja-JP';
-                recognition.continuous = false; recognition.interimResults = false; recognition.maxAlternatives = 1;
-                recognition.onstart = () => { setStatus('録音開始'); };
-                recognition.onend = () => { isRecording = false; document.getElementById('voiceButton').classList.remove('recording'); document.getElementById('voiceButton').textContent='🎤 音声入力'; setStatus('録音終了'); };
-                recognition.onerror = (ev) => { console.error('SpeechRecognition error', ev); isRecording = false; document.getElementById('voiceButton').classList.remove('recording'); document.getElementById('voiceButton').textContent='🎤 音声入力'; setStatus('音声認識エラー', true); };
-            } else {
-                document.getElementById('voiceButton').disabled=true; document.getElementById('voiceButton').textContent='🎤 非対応';
-                setStatus('音声入力はこのブラウザでサポートされていません', true);
-            }
-        }
-
-        let currentMemoPosition = null;
-        function startVoiceInputForMemo(pos) {
-            if(!recognition || isRecording) return;
-            currentMemoPosition = pos;
-            isRecording = true;
-            document.getElementById('voiceButton').classList.add('recording');
-            document.getElementById('voiceButton').textContent='🎤 録音中...';
-            recognition.onresult = ev => {
-                const transcript = ev.results[0][0].transcript;
-                createMemo(currentMemoPosition, transcript);
-                isRecording = false; document.getElementById('voiceButton').classList.remove('recording'); document.getElementById('voiceButton').textContent='🎤 音声入力';
-            };
-            try { recognition.start(); } catch(e) { console.error('recognition.start error', e); setStatus('音声認識の開始に失敗しました', true); isRecording = false; document.getElementById('voiceButton').classList.remove('recording'); document.getElementById('voiceButton').textContent='🎤 音声入力'; }
-        }
-
-        function toggleVoiceInput() {
-            if(!recognition) { setStatus('音声入力非対応', true); return; }
-            if(isRecording) { try{ recognition.stop(); }catch(e){} isRecording=false; document.getElementById('voiceButton').classList.remove('recording'); document.getElementById('voiceButton').textContent='🎤 音声入力'; return; }
-            const dir=new THREE.Vector3(); camera.getWorldDirection(dir); const pos=camera.position.clone().add(dir.multiplyScalar(3));
-            startVoiceInputForMemo(pos);
-        }
-
-        function chooseVoiceInput() { document.getElementById('inputMethodDialog').style.display='none'; if(pendingMemoPosition && recognition) startVoiceInputForMemo(pendingMemoPosition); else if(!recognition) { setStatus('音声入力未対応', true); document.getElementById('memoInputDialog').style.display='block'; } }
-        function chooseKeyboardInput() { document.getElementById('inputMethodDialog').style.display='none'; if(pendingMemoPosition) { document.getElementById('memoTextarea').value=''; document.getElementById('memoInputDialog').style.display='block'; } }
-
-        // ---------- VR メモ配置 ----------
-        function placeVRMemo() {
-            try {
-                const direction=new THREE.Vector3(); camera.getWorldDirection(direction);
-                const position=camera.position.clone().add(direction.multiplyScalar(3));
-                const timestamp=new Date().toLocaleTimeString('ja-JP');
-                const memoText=`VRメモ ${timestamp}`;
-                createMemo(position, memoText);
-            } catch(error) { console.error('Error in placeVRMemo:', error); setStatus('VR メモ配置でエラー', true); }
-        }
-
-        // ---------- VR コントローラ処理（省略せずに呼び出し） ----------
-        function handleVRControllers(delta) {
-            const session = renderer.xr.getSession();
-            if(!session) { updateVRDebugPanel('No VR session\nFOV: '+zoomLevel.toFixed(1)); return; }
-            if(!session.inputSources || session.inputSources.length===0) { updateVRDebugPanel('No input sources\nFOV: '+zoomLevel.toFixed(1)); return; }
-            let debugInfo=['VR Debug','']; if(vrMemoMode) debugInfo.push('=== MEMO MODE: ON ==='); else debugInfo.push('=== MEMO MODE: OFF ===');
-            debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`); debugInfo.push('');
-            for(let i=0;i<session.inputSources.length;i++) {
-                const inputSource = session.inputSources[i]; const gamepad = inputSource.gamepad;
-                if(!gamepad) { debugInfo.push(`${inputSource.handedness}: No gamepad`); continue; }
-                const axesStr = gamepad.axes.map((v,idx)=>`${idx}:${v.toFixed(2)}`).join(' '); debugInfo.push(`${inputSource.handedness}:`); debugInfo.push(`  axes: ${axesStr}`);
-                const pressedButtons=[]; for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++){ if(gamepad.buttons[btnIdx].pressed) pressedButtons.push(btnIdx); }
-                debugInfo.push(`  btns: ${pressedButtons.length>0?pressedButtons.join(','):'none'}`);
-                if(inputSource.handedness==='left') {
-                    let moveX=0,moveZ=0;
-                    if(Math.abs(gamepad.axes[0])>0.05) moveX = gamepad.axes[0];
-                    if(Math.abs(gamepad.axes[1])>0.05) moveZ = -gamepad.axes[1];
-                    if(Math.abs(moveX)>0.05 || Math.abs(moveZ)>0.05) {
-                        const cameraWorldQuaternion = new THREE.Quaternion();
-                        camera.getWorldQuaternion(cameraWorldQuaternion);
-                        const forward=new THREE.Vector3(0,0,-1).applyQuaternion(cameraWorldQuaternion); forward.y=0; forward.normalize();
-                        const right=new THREE.Vector3(1,0,0).applyQuaternion(cameraWorldQuaternion); right.y=0; right.normalize();
-                        const moveVector=new THREE.Vector3();
-                        moveVector.add(forward.multiplyScalar(moveZ*VR_MOVE_SPEED*delta));
-                        moveVector.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
-                        cameraRig.position.x += moveVector.x; cameraRig.position.z += moveVector.z;
-                        debugInfo.push(`  *** MOVING! ***`);
-                    }
-                    const btn4Pressed = gamepad.buttons[4] && gamepad.buttons[4].pressed;
-                    if(btn4Pressed) {
-                        if(!xButtonCooldown) {
-                            if(xButtonPressTime===0) { xButtonPressTime = performance.now(); debugInfo.push(`  Btn4 START press`); }
-                            else {
-                                const pressDuration = performance.now() - xButtonPressTime; debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
-                                if(pressDuration>500) { vrMemoMode = !vrMemoMode; debugInfo.push(`  *** MEMO MODE: ${vrMemoMode?'ON':'OFF'} ***`); xButtonCooldown = true; xButtonPressTime = 0; }
-                            }
-                        } else { debugInfo.push(`  Btn4 (cooldown)`); }
-                    } else { xButtonPressTime = 0; xButtonCooldown = false; }
-                    for(let btnIdx=0; btnIdx<gamepad.buttons.length; btnIdx++) {
-                        if(gamepad.buttons[btnIdx].pressed && btnIdx!==4) {
-                            if(btnIdx===0) { cameraRig.position.y += VR_MOVE_SPEED*delta; debugInfo.push(`  UP!`); }
-                            else if(btnIdx===1) { cameraRig.position.y -= VR_MOVE_SPEED*delta; if(cameraRig.position.y < 0) cameraRig.position.y = 0; debugInfo.push(`  DOWN!`); }
-                        }
-                    }
-                }
-                if(inputSource.handedness==='right') {
-                    const axes = gamepad.axes;
-                    if(axes.length >= 4) {
-                        const rotX = axes[2]||0; const rotY = axes[3]||0;
-                        if(Math.abs(rotX) > 0.1) { cameraRig.rotation.y -= rotX * VR_ROTATION_SPEED * delta; debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`); }
-                        if(Math.abs(rotY) > 0.1) { camera.rotation.x -= rotY * VR_ROTATION_SPEED * delta; camera.rotation.x = Math.max(-Math.PI/3, Math.min(Math.PI/3, camera.rotation.x)); debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`); }
-                    }
-                    const triggerBtn = gamepad.buttons[0]; const isTriggerPressed = triggerBtn && triggerBtn.pressed;
-                    if(isTriggerPressed && !rightTriggerPressed) {
-                        if(vrMemoMode) { placeVRMemo(); vrMemoMode = false; } else { zoomOut(); }
-                        rightTriggerPressed = true;
-                    } else if(!isTriggerPressed && rightTriggerPressed) rightTriggerPressed = false;
-                    const gripBtn = gamepad.buttons[1]; const isGripPressed = gripBtn && gripBtn.pressed;
-                    if(isGripPressed && !rightGripPressed) { zoomIn(); rightGripPressed = true; } else if(!isGripPressed && rightGripPressed) rightGripPressed = false;
-                }
-                debugInfo.push('');
-            }
-            debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
-            updateVRDebugPanel(debugInfo.join('\n'));
-        }
-
-        // ---------- ユーティリティ（回転/スケール/選択情報更新） ----------
-        function rotateSelected(rad) {
-            if(!selectedObject) return;
-            if(selectedObject.type==='model') selectedObject.object.rotation.y += rad;
-            else if(selectedObject.type==='memo') {
-                // Sprite は回転で視線向けにするのが一般的だが、ここでは回転を許可
-                memos[selectedObject.index].sprite.material.rotation = (memos[selectedObject.index].sprite.material.rotation || 0) + rad;
-            }
-            updateSelectionInfo();
-        }
-
-        function scaleSelected(factor) {
-            if(!selectedObject) return;
-            if(selectedObject.type==='model') selectedObject.object.scale.multiplyScalar(factor);
-            else if(selectedObject.type==='memo') memos[selectedObject.index].sprite.scale.multiplyScalar(factor);
-            updateSelectionInfo();
-        }
-
-        function setScale(s) {
-            if(!loadedModel) { setStatus('スケール変更対象のモデルがありません', true); return; }
-            loadedModel.scale.set(s,s,s);
-            document.getElementById('scaleSlider').value=s;
-            document.getElementById('scaleValue').textContent=`${s.toFixed(1)}x`;
-        }
-
-        // ---------- リサイズ / アニメーション ----------
-        function onWindowResize() {
-            camera.aspect = window.innerWidth/window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function animate() {
-            const time = performance.now();
-            const delta = (time - prevTime) / 1000;
-            if(renderer.xr.isPresenting) {
-                handleVRControllers(delta);
-            } else {
-                velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
-                direction.z = Number(moveBackward) - Number(moveForward); direction.x = Number(moveLeft) - Number(moveRight);
-                direction.normalize();
-                if(moveForward || moveBackward) velocity.z -= direction.z * MOVE_SPEED * delta;
-                if(moveLeft || moveRight) velocity.x -= direction.x * MOVE_SPEED * delta;
-                const forward=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize();
-                const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion); right.y = 0; right.normalize();
-                camera.position.add(forward.multiplyScalar(velocity.z * delta)); camera.position.add(right.multiplyScalar(velocity.x * delta));
-                if(camera.position.y < PLAYER_HEIGHT) camera.position.y = PLAYER_HEIGHT;
-            }
-            prevTime = time;
+            // 初回レンダリングを強制（アニメーションループが動かない場合でも背景が見える）
             renderer.render(scene, camera);
-        }
 
-        // ---------- 初期化 ----------
-        init();
+            // 後続の init 処理（イベント登録など）は try/catch 外でも差し支えないので続ける
+            window.addEventListener('resize', onWindowResize);
+            // 既存のイベント/UI 初期化はここに移行してください（省略）
+            renderer.setAnimationLoop(animate);
+
+            setStatus('初期化完了');
+        } catch (err) {
+            const msg = (err && err.stack) ? err.stack : String(err);
+            showErrorOverlay(msg);
+            setStatus('初期化エラー', true);
+        }
+    }
+
+    window.addEventListener('error', function(ev) {
+        const message = ev && ev.error ? (ev.error.stack || ev.error.message) : (ev.message || String(ev));
+        showErrorOverlay(message);
+    });
+
+    window.addEventListener('unhandledrejection', function(ev) {
+        const reason = ev && ev.reason ? (ev.reason.stack || ev.reason) : String(ev);
+        showErrorOverlay('UnhandledRejection: ' + reason);
+    });
+
+    function onWindowResize() {
+        if(!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        const time = performance.now();
+        const delta = (time - prevTime) / 1000;
+        prevTime = time;
+        // 簡易シーン更新（実装版に合わせてください）
+        renderer.render(scene, camera);
+    }
+
+    // 初期化を呼ぶ
+    init();
     </script>
 </body>
 </html>

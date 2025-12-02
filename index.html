@@ -190,20 +190,20 @@
                 });
             }
             const c1=renderer.xr.getController(0);
-cameraRig.add(c1);  // ← cameraRigに追加
-controllers.push(c1);
-const c2=renderer.xr.getController(1);
-cameraRig.add(c2);  // ← cameraRigに追加
-controllers.push(c2);
+            camera.add(c1);
+            controllers.push(c1);
+            const c2=renderer.xr.getController(1);
+            camera.add(c2);
+            controllers.push(c2);
             const geom=new THREE.CylinderGeometry(0.01,0.02,0.1,8);
             const mat1=new THREE.MeshStandardMaterial({color:0xff0000});
             const mat2=new THREE.MeshStandardMaterial({color:0x0000ff});
             const g1=renderer.xr.getControllerGrip(0);
             g1.add(new THREE.Mesh(geom,mat1));
-            scene.add(g1);
+            camera.add(g1);
             const g2=renderer.xr.getControllerGrip(1);
             g2.add(new THREE.Mesh(geom,mat2));
-            scene.add(g2);
+            camera.add(g2);
         }
 
         function createVRDebugPanel() {

@@ -736,32 +736,60 @@
 function placeVRMemo() {
     console.log('=== placeVRMemo START ===');
     try {
-        // 右コントローラ(controller[1])の位置を取得
-        const rightController = controllers[1];
-        let position;
+        const session = renderer.xr.getSession();
+        if(! session || !session.inputSources) {
+            console.warn('No VR session active');
+            return;
+        }
         
-        if(rightController && rightController.position) {
-            // コントローラの位置を使用
-            position = rightController. position. clone();
-            console.log('Using right controller position:', position);
+        // 右コントローラを探す
+        let rightController = null;
+        let rightControllerIndex = -1;
+        
+        for(let i = 0; i < session.inputSources.length; i++) {
+            if(session.inputSources[i].handedness === 'right') {
+                rightController = controllers[i];
+                rightControllerIndex = i;
+                break;
+            }
+        }
+        
+        let memoPosition;
+        
+        if(rightController) {
+            // コントローラのワールド座標を取得
+            const worldPosition = new THREE.Vector3();
+            rightController.getWorldPosition(worldPosition);
+            console.log('Right controller world position:', worldPosition);
+            
+            // コントローラの向きを取得
+            const worldDirection = new THREE.Vector3(0, 0, -1);
+            const worldQuaternion = new THREE. Quaternion();
+            rightController.getWorldQuaternion(worldQuaternion);
+            worldDirection.applyQuaternion(worldQuaternion);
+            console.log('Right controller world direction:', worldDirection);
+            
+            // コントローラの前方0.3m地点にメモを配置
+            memoPosition = worldPosition.clone().add(worldDirection.multiplyScalar(0. 3));
+            console.log('Calculated memo position:', memoPosition);
         } else {
-            // フォールバック：カメラの前方
+            // フォールバック：カメラの前方3m
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
-            position = camera.position.clone().add(direction.multiplyScalar(3));
-            console.log('Fallback to camera direction:', position);
+            memoPosition = camera.position.clone(). add(direction.multiplyScalar(3));
+            console.log('Fallback to camera direction:', memoPosition);
         }
         
         const timestamp = new Date().toLocaleTimeString('ja-JP');
         const memoText = `VRメモ ${timestamp}`;
-        console.log('Creating memo with text:', memoText);
+        console. log('Creating memo with text:', memoText);
         
-        createMemo(position, memoText);
+        createMemo(memoPosition, memoText);
         console.log('Memo created successfully, total memos:', memos.length);
     } catch(error) {
         console.error('Error in placeVRMemo:', error);
     }
-    console. log('=== placeVRMemo END ===');
+    console.log('=== placeVRMemo END ===');
 }
 
         function animate() {

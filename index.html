@@ -731,27 +731,38 @@
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-        function placeVRMemo() {
-            console.log('=== placeVRMemo START ===');
-            try {
-                const direction=new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                console.log('Camera world direction:', direction);
-                
-                const position=camera.position.clone().add(direction.multiplyScalar(3));
-                console.log('Calculated memo position:', position);
-                
-                const timestamp=new Date().toLocaleTimeString('ja-JP');
-                const memoText=`VRメモ ${timestamp}`;
-                console.log('Creating memo with text:', memoText);
-                
-                createMemo(position, memoText);
-                console.log('Memo created successfully, total memos:', memos.length);
-            } catch(error) {
-                console.error('Error in placeVRMemo:', error);
-            }
-            console.log('=== placeVRMemo END ===');
+        // 既存の placeVRMemo() 関数を置き換えてください
+
+function placeVRMemo() {
+    console.log('=== placeVRMemo START ===');
+    try {
+        // 右コントローラ(controller[1])の位置を取得
+        const rightController = controllers[1];
+        let position;
+        
+        if(rightController && rightController.position) {
+            // コントローラの位置を使用
+            position = rightController. position. clone();
+            console.log('Using right controller position:', position);
+        } else {
+            // フォールバック：カメラの前方
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            position = camera.position.clone().add(direction.multiplyScalar(3));
+            console.log('Fallback to camera direction:', position);
         }
+        
+        const timestamp = new Date().toLocaleTimeString('ja-JP');
+        const memoText = `VRメモ ${timestamp}`;
+        console.log('Creating memo with text:', memoText);
+        
+        createMemo(position, memoText);
+        console.log('Memo created successfully, total memos:', memos.length);
+    } catch(error) {
+        console.error('Error in placeVRMemo:', error);
+    }
+    console. log('=== placeVRMemo END ===');
+}
 
         function animate() {
             const time=performance.now();

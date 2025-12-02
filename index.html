@@ -190,11 +190,11 @@
                 });
             }
             const c1=renderer.xr.getController(0);
-            scene.add(c1);
-            controllers.push(c1);
-            const c2=renderer.xr.getController(1);
-            scene.add(c2);
-            controllers.push(c2);
+cameraRig.add(c1);  // ← cameraRigに追加
+controllers.push(c1);
+const c2=renderer.xr.getController(1);
+cameraRig.add(c2);  // ← cameraRigに追加
+controllers.push(c2);
             const geom=new THREE.CylinderGeometry(0.01,0.02,0.1,8);
             const mat1=new THREE.MeshStandardMaterial({color:0xff0000});
             const mat2=new THREE.MeshStandardMaterial({color:0x0000ff});

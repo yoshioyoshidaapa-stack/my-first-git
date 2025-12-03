@@ -766,36 +766,24 @@
             console.log('=== placeVRMemo END ===');
         }
 
-        function animate() {
-            const time=performance.now();
-            const delta=(time-prevTime)/1000;
-            if(renderer.xr.isPresenting) {
-                handleVRControllers(delta);
-            } else {
-                velocity.x-=velocity.x*10*delta;
-                velocity.z-=velocity.z*10*delta;
-                direction.z=Number(moveBackward)-Number(moveForward);
-                direction.x=Number(moveLeft)-Number(moveRight);
-                direction.normalize();
-                if(moveForward||moveBackward)velocity.z-=direction.z*MOVE_SPEED*delta;
-                if(moveLeft||moveRight)velocity.x-=direction.x*MOVE_SPEED*delta;
-                const forward=new THREE.Vector3(0,0,-1);
-                forward.applyQuaternion(camera.quaternion);
-                forward.y=0;
-                forward.normalize();
-                const right=new THREE.Vector3(1,0,0);
-                right.applyQuaternion(camera.quaternion);
-                right.y=0;
-                right.normalize();
-                camera.position.add(forward.multiplyScalar(velocity.z*delta));
-                camera.position.add(right.multiplyScalar(velocity.x*delta));
-                if(camera.position.y<PLAYER_HEIGHT) {
-                    camera.position.y=PLAYER_HEIGHT;
-                }
-            }
-            prevTime=time;
-            renderer.render(scene,camera);
-        }
+      function animate() {
+  const time = performance.now();
+  const delta = (time - prevTime) / 1000;
+
+  if (renderer.xr.isPresenting) {
+    handleVRControllers(delta);
+    // ← VR中はカメラの移動・回転を直接いじらない
+  } else {
+    // PC モード時だけ camera を動かす
+    // ...（今のPC用移動処理のままでOK）
+  }
+
+  prevTime = time;
+
+  // ここを XR 対応
+  const xrCamera = renderer.xr.isPresenting ? renderer.xr.getCamera(camera) : camera;
+  renderer.render(scene, xrCamera);
+}
 
         init();
     </script>

@@ -106,12 +106,22 @@
         let isMouseDown=false, lastMouseX=0, lastMouseY=0, zoomLevel=75;
         const MIN_FOV=30, MAX_FOV=100, PLAYER_HEIGHT=1.6, MOVE_SPEED=80, VR_MOVE_SPEED=10, VR_ROTATION_SPEED=1.5;
         let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
+        let rightController = null; 
+
+        // 既にあるはずの配列
+
+        // let controllers = [];
+
+
+        
+
+        
         let recognition=null, isRecording=false, pendingMemoPosition=null;
         let vrMemoMode=false, xButtonPressTime=0, xButtonCooldown=false;
         let vrDebugText=null, vrDebugCanvas=null;
         let rightTriggerPressed=false, rightGripPressed=false;
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
-        const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
+        const VERSION='v1.1.1', UPDATE_DATE='2025/12/3';
 
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -128,7 +138,7 @@
             renderer.shadowMap.enabled=true;
             renderer.xr.enabled=true;
             document.getElementById('container').appendChild(renderer.domElement);
-            setupVR();
+            VR();
             createVRDebugPanel();
             scene.add(new THREE.AmbientLight(0xffffff,0.6));
             const light=new THREE.DirectionalLight(0xffffff,0.8);
@@ -190,13 +200,15 @@
                 });
             }
             // ターゲットレイ(ポインター)の作成 - cameraRigに追加
-            const c1=renderer.xr.getController(0);
-            cameraRig.add(c1);
-            controllers.push(c1);
-            const c2=renderer.xr.getController(1);
-            cameraRig.add(c2);
-            controllers.push(c2);
-            
+           const c1 = renderer.xr.getController(0); // 左手
+    cameraRig.add(c1);
+    controllers.push(c1);
+
+    const c2 = renderer.xr.getController(1); // 右手
+    cameraRig.add(c2);
+    controllers.push(c2);
+
+    rightController = c2; // ← 右手を覚えておく
             // コントローラーグリップ(手の位置)の作成 - cameraRigに追加
             const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
             const mat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
@@ -744,27 +756,48 @@
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-        function placeVRMemo() {
-            console.log('=== placeVRMemo START ===');
-            try {
-                const direction=new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                console.log('Camera world direction:', direction);
-                
-                const position=camera.position.clone().add(direction.multiplyScalar(3));
-                console.log('Calculated memo position:', position);
-                
-                const timestamp=new Date().toLocaleTimeString('ja-JP');
-                const memoText=`VRメモ ${timestamp}`;
-                console.log('Creating memo with text:', memoText);
-                
-                createMemo(position, memoText);
-                console.log('Memo created successfully, total memos:', memos.length);
-            } catch(error) {
-                console.error('Error in placeVRMemo:', error);
-            }
-            console.log('=== placeVRMemo END ===');
+    function placeVRMemo() {
+    console.log('=== placeVRMemo START ===');
+    try {
+        // 1. 右手コントローラーが使えるかチェック
+        if (!rightController) {
+            console.warn('Right controller not found, fallback to camera');
+
+            // 右コントローラーがないときは、いままで通り「カメラの前」にメモを出す
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            const position = camera.position.clone().add(dir.multiplyScalar(3));
+            const memoText = `VRメモ ${new Date().toLocaleTimeString('ja-JP')}`;
+            createMemo(position, memoText);
+            console.log('=== placeVRMemo END (fallback) ===');
+            return;
         }
+
+        // 2. コントローラーの「根本」と「棒の先」のローカル座標
+        //    - (0,0,0) がコントローラーの持ち手
+        //    - (0,0,-2) が赤い棒の先端（lineGeom と同じ長さ）
+        const originLocal = new THREE.Vector3(0, 0, 0);
+        const tipLocal    = new THREE.Vector3(0, 0, -2);
+
+        // 3. ワールド座標に変換する
+        rightController.updateMatrixWorld(true);
+        const originWorld = originLocal.clone().applyMatrix4(rightController.matrixWorld);
+        const tipWorld    = tipLocal.clone().applyMatrix4(rightController.matrixWorld);
+
+        // 4. 「棒の向き」を計算して、先端から少しだけ前に出した位置を作る
+        const dir = new THREE.Vector3().subVectors(tipWorld, originWorld).normalize();
+        const position = tipWorld.clone().add(dir.multiplyScalar(0.1)); // 0.1m 先
+
+        // 5. その位置にメモを作る
+        const memoText = `VRメモ ${new Date().toLocaleTimeString('ja-JP')}`;
+        createMemo(position, memoText);
+
+        console.log('=== placeVRMemo END (controller) ===');
+    } catch (error) {
+        console.error('Error in placeVRMemo:', error);
+    }
+}
+
 
       function animate() {
   const time = performance.now();

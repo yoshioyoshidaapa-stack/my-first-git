@@ -189,37 +189,21 @@
                     }
                 });
             }
-            // 実際のコントローラー（追跡用、非表示）
             const c1=renderer.xr.getController(0);
             scene.add(c1);
             controllers.push(c1);
             const c2=renderer.xr.getController(1);
             scene.add(c2);
             controllers.push(c2);
-            
-            // 視覚表現（cameraRigの子要素として追従）
-            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-            const mat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
-            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff,emissive:0x0000ff,emissiveIntensity:0.5});
-            
-            const visual1=new THREE.Group();
-            const mesh1=new THREE.Mesh(geom,mat1);
-            mesh1.position.z=-0.075;
-            visual1.add(mesh1);
-            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-            visual1.add(new THREE.Line(lineGeom,lineMat1));
-            cameraRig.add(visual1);
-            controllerVisuals.push(visual1);
-            
-            const visual2=new THREE.Group();
-            const mesh2=new THREE.Mesh(geom,mat2);
-            mesh2.position.z=-0.075;
-            visual2.add(mesh2);
-            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-            visual2.add(new THREE.Line(lineGeom.clone(),lineMat2));
-            cameraRig.add(visual2);
-            controllerVisuals.push(visual2);
+            const geom=new THREE.CylinderGeometry(0.01,0.02,0.1,8);
+            const mat1=new THREE.MeshStandardMaterial({color:0xff0000});
+            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff});
+            const g1=renderer.xr.getControllerGrip(0);
+            g1.add(new THREE.Mesh(geom,mat1));
+            scene.add(g1);
+            const g2=renderer.xr.getControllerGrip(1);
+            g2.add(new THREE.Mesh(geom,mat2));
+            scene.add(g2);
         }
         function createVRDebugPanel() {
             vrDebugCanvas=document.createElement('canvas');

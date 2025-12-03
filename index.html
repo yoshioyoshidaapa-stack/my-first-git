@@ -613,6 +613,25 @@
             debugInfo.push('');
 
             for(let i=0;i<session.inputSources.length;i++) {
+
+                                // 👇 ここに追加（forループ内のgamepad処理の最後）
+if(inputSource.handedness==='left') {
+    // 左スティックで移動
+    const axes=gamepad.axes;
+    if(axes.length>=2) {
+        const moveX=axes[0]||0, moveZ=axes[1]||0;
+        if(Math.abs(moveX)>0.1 || Math.abs(moveZ)>0.1) {
+            const forward=new THREE.Vector3(0,0,-1);
+            forward.applyQuaternion(cameraRig.quaternion);
+            forward.y=0; forward.normalize();
+            const right=new THREE.Vector3(1,0,0);
+            right.applyQuaternion(cameraRig.quaternion);
+            right.y=0; right.normalize();
+            cameraRig.position.add(forward.multiplyScalar(-moveZ*VR_MOVE_SPEED*delta));
+            cameraRig.position.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
+        }
+    }
+}
                 const inputSource=session.inputSources[i];
                 const gamepad=inputSource.gamepad;
                 if(!gamepad) {
@@ -635,24 +654,7 @@
 
                
                 debugInfo.push('');
-                // 👇 ここに追加（forループ内のgamepad処理の最後）
-if(inputSource.handedness==='left') {
-    // 左スティックで移動
-    const axes=gamepad.axes;
-    if(axes.length>=2) {
-        const moveX=axes[0]||0, moveZ=axes[1]||0;
-        if(Math.abs(moveX)>0.1 || Math.abs(moveZ)>0.1) {
-            const forward=new THREE.Vector3(0,0,-1);
-            forward.applyQuaternion(cameraRig.quaternion);
-            forward.y=0; forward.normalize();
-            const right=new THREE.Vector3(1,0,0);
-            right.applyQuaternion(cameraRig.quaternion);
-            right.y=0; right.normalize();
-            cameraRig.position.add(forward.multiplyScalar(-moveZ*VR_MOVE_SPEED*delta));
-            cameraRig.position.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
-        }
-    }
-}
+
 
 if(inputSource.handedness==='right') {
     // 右スティックで視点回転

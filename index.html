@@ -117,7 +117,7 @@
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
         let lastVRMemoPos = null;
-        
+        let pendingVRMemoPosition = null; // VRメモ用位置保存
 function debugLog(msg) {
     const panel = document.getElementById('debugPanel');
     if (!panel) return;
@@ -619,167 +619,186 @@ function debugLog(msg) {
         }
 
         function handleVRControllers(delta) {
-            const session=renderer.xr.getSession();
-            if(!session) {
-                updateVRDebugPanel('No VR session\nFOV: '+zoomLevel.toFixed(1));
-                return;
-            }
-            if(!session.inputSources||session.inputSources.length===0) {
-                updateVRDebugPanel('No input sources\nFOV: '+zoomLevel.toFixed(1));
-                return;
-            }
-            let debugInfo=['VR Debug',''];
-            if(vrMemoMode) {
-                debugInfo.push('=== MEMO MODE: ON ===');
-            } else {
-                debugInfo.push('=== MEMO MODE: OFF ===');
-            }
-            debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
-            debugInfo.push('');
+    const session = renderer.xr.getSession();
+    if (!session) {
+        updateVRDebugPanel(`No VR session\nzoomLevel: ${zoomLevel.toFixed(1)}`);
+        return;
+    }
+    if (!session.inputSources || session.inputSources.length === 0) {
+        updateVRDebugPanel(`No input sources\nzoomLevel: ${zoomLevel.toFixed(1)}`);
+        return;
+    }
 
-            for(let i=0;i<session.inputSources.length;i++) {
-                const inputSource=session.inputSources[i];
-                const gamepad=inputSource.gamepad;
-                if(!gamepad) {
-                    debugInfo.push(`${inputSource.handedness}: No gamepad`);
-                    continue;
-                }
+    let debugInfo = [`VR Debug`];
+    if (vrMemoMode) debugInfo.push(`MEMO MODE ON`);
+    else debugInfo.push(`MEMO MODE OFF`);
+    debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MINFOV}-${MAXFOV}`);
 
-                const axesStr=gamepad.axes.map((v,idx)=>`${idx}:${v.toFixed(2)}`).join(' ');
-                debugInfo.push(`${inputSource.handedness}:`);
-                debugInfo.push(`  axes: ${axesStr}`);
-                const pressedButtons=[];
-                for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
-                    if(gamepad.buttons[btnIdx].pressed) {
-                        pressedButtons.push(btnIdx);
-                    }
-                }
-                debugInfo.push(`  btns: ${pressedButtons.length>0?pressedButtons.join(','):'none'}`);
-
-                if(inputSource.handedness==='left') {
-                    let moveX=0,moveZ=0;
-                    if(Math.abs(gamepad.axes[0])>0.05)moveX=gamepad.axes[0];
-                    if(Math.abs(gamepad.axes[1])>0.05)moveZ=-gamepad.axes[1];
-                    if(Math.abs(gamepad.axes[2])>0.05)moveX=gamepad.axes[2];
-                    if(Math.abs(gamepad.axes[3])>0.05)moveZ=-gamepad.axes[3];
-                    debugInfo.push(`  moveX:${moveX.toFixed(3)} moveZ:${moveZ.toFixed(3)}`);
-                    if(Math.abs(moveX)>0.05||Math.abs(moveZ)>0.05) {
-                        const cameraWorldQuaternion=new THREE.Quaternion();
-                        camera.getWorldQuaternion(cameraWorldQuaternion);
-                        const forward=new THREE.Vector3(0,0,-1);
-                        forward.applyQuaternion(cameraWorldQuaternion);
-                        forward.y=0;
-                        forward.normalize();
-                        const right=new THREE.Vector3(1,0,0);
-                        right.applyQuaternion(cameraWorldQuaternion);
-                        right.y=0;
-                        right.normalize();
-                        const moveVector=new THREE.Vector3();
-                        moveVector.add(forward.multiplyScalar(moveZ*VR_MOVE_SPEED*delta));
-                        moveVector.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
-                        cameraRig.position.x+=moveVector.x;
-                        cameraRig.position.z+=moveVector.z;
-                        debugInfo.push(`  *** MOVING! ***`);
-                    }
-
-                    const btn4Pressed=gamepad.buttons[4]&&gamepad.buttons[4].pressed;
-                    if(btn4Pressed) {
-                        if(!xButtonCooldown) {
-                            if(xButtonPressTime===0) {
-                                xButtonPressTime=performance.now();
-                                debugInfo.push(`  Btn4 START press`);
-                            } else {
-                                const pressDuration=performance.now()-xButtonPressTime;
-                                debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
-                                if(pressDuration>500) {
-                                    vrMemoMode=!vrMemoMode;
-                                    debugInfo.push(`  *** MEMO MODE: ${vrMemoMode?'ON':'OFF'} ***`);
-                                    xButtonCooldown=true;
-                                    xButtonPressTime=0;
-                                }
-                            }
-                        } else {
-                            debugInfo.push(`  Btn4 (cooldown)`);
-                        }
-                    } else {
-                        xButtonPressTime=0;
-                        xButtonCooldown=false;
-                    }
-
-                    for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
-                        if(gamepad.buttons[btnIdx].pressed&&btnIdx!==4) {
-                            if(btnIdx===0) {
-                                cameraRig.position.y+=VR_MOVE_SPEED*delta;
-                                debugInfo.push(`  UP!`);
-                            } else if(btnIdx===1) {
-                                cameraRig.position.y-=VR_MOVE_SPEED*delta;
-                                if(cameraRig.position.y<0)cameraRig.position.y=0;
-                                debugInfo.push(`  DOWN!`);
-                            }
-                        }
-                    }
-                }
-
-                if(inputSource.handedness==='right') {
-                    const axes=gamepad.axes;
-                    if(axes.length>=4) {
-                        const rotX=axes[2]||0;
-                        const rotY=axes[3]||0;
-                        if(Math.abs(rotX)>0.1) {
-                            cameraRig.rotation.y-=rotX*VR_ROTATION_SPEED*delta;
-                            debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
-                        }
-                        if(Math.abs(rotY)>0.1) {
-                            camera.rotation.x-=rotY*VR_ROTATION_SPEED*delta;
-                            camera.rotation.x=Math.max(-Math.PI/3,Math.min(Math.PI/3,camera.rotation.x));
-                            debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
-                        }
-                    }
-
-                    // 右トリガー(ボタン0) - メモ配置 or ズームアウト
-                    const triggerBtn=gamepad.buttons[0];
-                    const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
-                    
-                    if(isTriggerPressed&&!rightTriggerPressed) {
-                        // トリガーが押された瞬間
-                        debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
-                        if(vrMemoMode) {
-                            debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            placeVRMemo();  // ← これを追加
-    vrMemoMode=false;
-    debugInfo.push(`  >>> MEMO MODE OFF <<<`);
-                        } else {
-                            debugInfo.push(`  >>> ZOOM OUT <<<`);
-                            zoomOut();
-                        }
-                        rightTriggerPressed=true;
-                    } else if(!isTriggerPressed&&rightTriggerPressed) {
-                        // トリガーが離された
-                        debugInfo.push(`  Trigger UP`);
-                        rightTriggerPressed=false;
-                    } else if(isTriggerPressed) {
-                        debugInfo.push(`  Trigger HELD`);
-                    }
-
-                    // 右グリップ(ボタン1) - ズームイン
-                    const gripBtn=gamepad.buttons[1];
-                    const isGripPressed=gripBtn&&gripBtn.pressed;
-                    
-                    if(isGripPressed&&!rightGripPressed) {
-                        debugInfo.push(`  >>> GRIP - ZOOM IN <<<`);
-                        zoomIn();
-                        rightGripPressed=true;
-                    } else if(!isGripPressed&&rightGripPressed) {
-                        rightGripPressed=false;
-                    } else if(isGripPressed) {
-                        debugInfo.push(`  Grip HELD`);
-                    }
-                }
-                debugInfo.push('');
-            }
-            debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
-            updateVRDebugPanel(debugInfo.join('\n'));
+    for (let i = 0; i < session.inputSources.length; i++) {
+        const inputSource = session.inputSources[i];
+        const gamepad = inputSource.gamepad;
+        if (!gamepad) {
+            debugInfo.push(`${inputSource.handedness}: No gamepad`);
+            continue;
         }
+
+        const axesStr = gamepad.axes.map((v, idx) => `${idx}:${v.toFixed(2)}`).join(', ');
+        debugInfo.push(`${inputSource.handedness} axes: ${axesStr}`);
+
+        const pressedButtons = [];
+        for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
+            if (gamepad.buttons[btnIdx].pressed) pressedButtons.push(btnIdx);
+        }
+        debugInfo.push(`  btns: ${pressedButtons.length > 0 ? pressedButtons.join(',') : 'none'}`);
+
+        // 左コントローラー処理
+        if (inputSource.handedness === 'left') {
+            let moveX = 0, moveZ = 0;
+            if (Math.abs(gamepad.axes[0]) > 0.05) moveX = gamepad.axes[0];
+            if (Math.abs(gamepad.axes[1]) > 0.05) moveZ = -gamepad.axes[1];
+            if (Math.abs(gamepad.axes[2]) > 0.05) moveX = gamepad.axes[2];
+            if (Math.abs(gamepad.axes[3]) > 0.05) moveZ = -gamepad.axes[3];
+
+            debugInfo.push(`  moveX:${moveX.toFixed(3)} moveZ:${moveZ.toFixed(3)}`);
+
+            if (Math.abs(moveX) > 0.05 || Math.abs(moveZ) > 0.05) {
+                const cameraWorldQuaternion = new THREE.Quaternion();
+                camera.getWorldQuaternion(cameraWorldQuaternion);
+                const forward = new THREE.Vector3(0, 0, -1);
+                forward.applyQuaternion(cameraWorldQuaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0);
+                right.applyQuaternion(cameraWorldQuaternion);
+                right.y = 0;
+                right.normalize();
+
+                const moveVector = new THREE.Vector3();
+                moveVector.add(forward.multiplyScalar(moveZ * VRMOVESPEED * delta));
+                moveVector.add(right.multiplyScalar(moveX * VRMOVESPEED * delta));
+                cameraRig.position.x += moveVector.x;
+                cameraRig.position.z += moveVector.z;
+                debugInfo.push(`  MOVING!`);
+            }
+
+            // 左コントローラーXボタン（ボタン4）でメモモード切り替え
+            const btn4Pressed = gamepad.buttons[4] && gamepad.buttons[4].pressed;
+            if (btn4Pressed) {
+                if (!xButtonCooldown) {
+                    if (xButtonPressTime === 0) {
+                        xButtonPressTime = performance.now();
+                        debugInfo.push(`  Btn4 START press`);
+                    } else {
+                        const pressDuration = performance.now() - xButtonPressTime;
+                        debugInfo.push(`  Btn4 holding... ${ (pressDuration / 1000).toFixed(1) }s`);
+                        if (pressDuration > 500) {
+                            vrMemoMode = !vrMemoMode;
+                            debugInfo.push(`  MEMO MODE ${vrMemoMode ? 'ON' : 'OFF'}`);
+                            xButtonCooldown = true;
+                            xButtonPressTime = 0;
+                        }
+                    }
+                } else {
+                    debugInfo.push(`  Btn4 cooldown`);
+                }
+            } else {
+                xButtonPressTime = 0;
+                xButtonCooldown = false;
+            }
+
+            // A/Bボタン（0/1）で上下移動
+            for (let btnIdx = 0; btnIdx < gamepad.buttons.length; btnIdx++) {
+                if (gamepad.buttons[btnIdx].pressed && btnIdx !== 4) {
+                    if (btnIdx === 0) {
+                        cameraRig.position.y += VRMOVESPEED * delta;
+                        debugInfo.push(`  UP!`);
+                    } else if (btnIdx === 1) {
+                        cameraRig.position.y -= VRMOVESPEED * delta;
+                        if (cameraRig.position.y < 0) cameraRig.position.y = 0;
+                        debugInfo.push(`  DOWN!`);
+                    }
+                }
+            }
+        }
+
+        // 右コントローラー処理（赤いスティック）
+        if (inputSource.handedness === 'right') {
+            const axes = gamepad.axes;
+            if (axes.length >= 4) {
+                const rotX = axes[2];
+                const rotY = axes[3];
+                if (Math.abs(rotX) > 0.1) {
+                    cameraRig.rotation.y -= rotX * VRROTATIONSPEED * delta;
+                    debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
+                }
+                if (Math.abs(rotY) > 0.1) {
+                    camera.rotation.x -= rotY * VRROTATIONSPEED * delta;
+                    camera.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, camera.rotation.x));
+                    debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
+                }
+            }
+
+            // トリガー（ボタン0） - メモ配置/モード切り替え
+            const triggerBtn = gamepad.buttons[0];
+            const isTriggerPressed = triggerBtn && triggerBtn.pressed;
+            if (isTriggerPressed && !rightTriggerPressed) {
+                debugInfo.push(`  Trigger DOWN!`);
+                if (vrMemoMode) {
+                    debugInfo.push(`  PLACING MEMO - Show Input Dialog`);
+                    // 赤いスティックの正確な先端位置を計算
+                    const rightController = controllers[1];
+                    const raycaster = rightController.userData.raycaster;
+                    raycaster.ray.origin.copy(rightController.getWorldPosition(new THREE.Vector3()));
+                    raycaster.ray.direction.copy(rightController.getWorldDirection(new THREE.Vector3()));
+                    const hits = raycaster.intersectObjects(scene.children, true);
+                    let pos;
+                    if (hits.length > 0) {
+                        const hit = hits[0];
+                        const offset = hit.face ? 
+                            hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : 
+                            rightController.getWorldDirection(new THREE.Vector3()).negate();
+                        pos = hit.point.clone().add(offset.multiplyScalar(0.1));
+                        debugInfo.push(`  Hit surface at ${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}`);
+                    } else {
+                        const controllerPos = rightController.getWorldPosition(new THREE.Vector3());
+                        const controllerDir = rightController.getWorldDirection(new THREE.Vector3());
+                        pos = controllerPos.clone().add(controllerDir.multiplyScalar(0.5)); // スティック先端0.5m
+                        debugInfo.push(`  No hit, stick tip at ${pos.x.toFixed(2)},${pos.y.toFixed(2)},${pos.z.toFixed(2)}`);
+                    }
+                    pendingVRMemoPosition = pos; // VR専用位置保存
+                    document.getElementById('inputMethodDialog').style.display = 'block';
+                    vrMemoMode = false; // モードオフ
+                } else {
+                    debugInfo.push(`  MEMO MODE ON`);
+                    vrMemoMode = true;
+                }
+                rightTriggerPressed = true;
+            } else if (!isTriggerPressed && rightTriggerPressed) {
+                debugInfo.push(`  Trigger UP`);
+                rightTriggerPressed = false;
+            } else if (isTriggerPressed) {
+                debugInfo.push(`  Trigger HELD`);
+            }
+
+            // グリップ（ボタン1） - ズーム
+            const gripBtn = gamepad.buttons[1];
+            const isGripPressed = gripBtn && gripBtn.pressed;
+            if (isGripPressed && !rightGripPressed) {
+                debugInfo.push(`  GRIP - ZOOM IN`);
+                zoomIn();
+                rightGripPressed = true;
+            } else if (!isGripPressed && rightGripPressed) {
+                rightGripPressed = false;
+            } else if (isGripPressed) {
+                debugInfo.push(`  Grip HELD`);
+            }
+        }
+    }
+
+    debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
+    updateVRDebugPanel(debugInfo.join('\n'));
+}
+
 
        function placeVRMemo() {
     debugLog('=== placeVRMemo START ===');

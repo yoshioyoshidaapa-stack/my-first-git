@@ -128,48 +128,7 @@
             renderer.shadowMap.enabled=true;
             renderer.xr.enabled=true;
             document.getElementById('container').appendChild(renderer.domElement);
-            setupVR();
-            createVRDebugPanel();
-            scene.add(new THREE.AmbientLight(0xffffff,0.6));
-            const light=new THREE.DirectionalLight(0xffffff,0.8);
-            light.position.set(5,10,5);
-            light.castShadow=true;
-            scene.add(light);
-            const floor=new THREE.Mesh(new THREE.PlaneGeometry(50,50),new THREE.MeshStandardMaterial({color:0x808080}));
-            floor.rotation.x=-Math.PI/2;
-            floor.receiveShadow=true;
-            scene.add(floor);
-            const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.5,32,32),new THREE.MeshStandardMaterial({color:0xff0000}));
-            sphere.position.set(0,0.5,-3);
-            sphere.castShadow=true;
-            scene.add(sphere);
-            document.addEventListener('keydown',onKeyDown);
-            document.addEventListener('keyup',onKeyUp);
-            const c=document.getElementById('container');
-            c.addEventListener('mousedown',onMouseDown);
-            c.addEventListener('mousemove',onMouseMove);
-            c.addEventListener('mouseup',()=>isMouseDown=false);
-            c.addEventListener('mouseleave',()=>isMouseDown=false);
-            c.addEventListener('wheel',onMouseWheel);
-            document.getElementById('fileInput').addEventListener('change',onFileSelect);
-            document.getElementById('resetButton').addEventListener('click',resetCamera);
-            document.getElementById('clearButton').addEventListener('click',clearModel);
-            document.getElementById('scaleSlider').addEventListener('input',e=>setScale(parseFloat(e.target.value)));
-            document.getElementById('scale05').addEventListener('click',()=>setScale(0.5));
-            document.getElementById('scale1').addEventListener('click',()=>setScale(1.0));
-            document.getElementById('scale2').addEventListener('click',()=>setScale(2.0));
-            document.getElementById('scale5').addEventListener('click',()=>setScale(5.0));
-            document.getElementById('voiceButton').addEventListener('click',toggleVoiceInput);
-            document.getElementById('voiceInputBtn').addEventListener('click',chooseVoiceInput);
-            document.getElementById('keyboardInputBtn').addEventListener('click',chooseKeyboardInput);
-            document.getElementById('submitMemoBtn').addEventListener('click',submitMemo);
-            document.getElementById('cancelMemoBtn').addEventListener('click',cancelMemoInput);
-            window.addEventListener('resize',onWindowResize);
-            initSpeechRecognition();
-            renderer.setAnimationLoop(animate);
-        }
-
-      function setupVR() {
+            function setupVR() {
             const vrButton=document.getElementById('vrButton');
             if('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then(sup=>{

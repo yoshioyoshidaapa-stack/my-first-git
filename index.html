@@ -734,9 +734,9 @@
                         debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
                         if(vrMemoMode) {
                             debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            ();
-                            vrMemoMode=false;
-                            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
+                            placeVRMemo();  // ← これを追加
+    vrMemoMode=false;
+    debugInfo.push(`  >>> MEMO MODE OFF <<<`);
                         } else {
                             debugInfo.push(`  >>> ZOOM OUT <<<`);
                             zoomOut();

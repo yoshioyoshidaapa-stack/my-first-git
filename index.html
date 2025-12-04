@@ -451,57 +451,65 @@
             pendingMemoPosition=null;
         }
 
-        function createMemo(pos,txt) {
-            console.log('=== createMemo START ===');
-            console.log('Position:', pos);
-            console.log('Text:', txt);
-            
-            const id=memoCounter++;
-            const canvas=document.createElement('canvas');
-            const ctx=canvas.getContext('2d');
-            canvas.width=512;
-            ctx.font='bold 32px Arial';
-            const lines=[];
-            txt.split('\n').forEach(para=>{
-                const words=para.split(' ');
-                let line='';
-                words.forEach(word=>{
-                    const test=line+word+' ';
-                    if(ctx.measureText(test).width>472&&line!=='') {
-                        lines.push(line.trim());
-                        line=word+' ';
-                    } else {
-                        line=test;
-                    }
-                });
+       function createMemo(pos, txt) {
+    console.log('=== createMemo START ===');
+    console.log('Position:', pos);
+    console.log('Text:', txt);
+    
+    // ワールド座標を追加
+    const coords = pos.clone();
+    const coordText = `座標: (${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)})`;
+    const fullText = txt ? `${txt}\n\n${coordText}` : coordText;
+    
+    const id = memoCounter++;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512;
+    
+    // テキストのサイズを事前計算
+    ctx.font = 'bold 32px Arial';
+    const lines = [];
+    fullText.split('\n').forEach(para => {
+        const words = para.split(' ');
+        let line = '';
+        words.forEach(word => {
+            const test = line + word + ' ';
+            if (ctx.measureText(test).width > 472 && line !== '') {
                 lines.push(line.trim());
-            });
-            canvas.height=(lines.length*40)+40;
-            ctx.fillStyle='#ffd93d';
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle='#000';
-            ctx.font='bold 32px Arial';
-            ctx.textAlign='center';
-            ctx.textBaseline='top';
-            let y=20;
-            lines.forEach(line=>{
-                ctx.fillText(line,256,y);
-                y+=40;
-            });
-            const tex=new THREE.CanvasTexture(canvas);
-            const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex}));
-            sprite.position.copy(pos);
-            sprite.scale.set(1,canvas.height/canvas.width,1);
-            sprite.name=`memo_${id}`;
-            scene.add(sprite);
-            console.log('Sprite added to scene:', sprite.name);
-            
-            memos.push({id,text:txt,position:pos.clone(),sprite});
-            console.log('Memo added to array, total:', memos.length);
-            updateMemoList();
-            console.log('=== createMemo END ===');
-        }
-
+                line = word + ' ';
+            } else {
+                line = test;
+            }
+        });
+        lines.push(line.trim());
+    });
+    
+    canvas.height = (lines.length * 40) + 40;
+    ctx.fillStyle = '#ffd93d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    let y = 20;
+    lines.forEach(line => {
+        ctx.fillText(line, 256, y);
+        y += 40;
+    });
+    
+    const tex = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+    sprite.position.copy(pos);
+    sprite.scale.set(1, canvas.height / canvas.width, 1);
+    sprite.name = `memo_${id}`;
+    scene.add(sprite);
+    console.log('Sprite added to scene:', sprite.name);
+    
+    memos.push({ id, text: fullText, position: pos.clone(), sprite }); // fullTextを保存
+    console.log('Memo added to array, total:', memos.length);
+    updateMemoList();
+    console.log('=== createMemo END ===');
+}
         function deleteMemo(id) {
             const idx=memos.findIndex(m=>m.id===id);
             if(idx!==-1) {
@@ -511,16 +519,24 @@
             }
         }
 
-        function updateMemoList() {
-            const list=document.getElementById('memoList');
-            list.innerHTML='';
-            memos.forEach(m=>{
-                const item=document.createElement('div');
-                item.className='memo-item';
-                item.innerHTML=`<div><strong>#${m.id+1}</strong>: ${m.text.replace(/\n/g,'<br>')}</div><button onclick="deleteMemo(${m.id})">削除</button>`;
-                list.appendChild(item);
-            });
-        }
+       function updateMemoList() {
+    const list = document.getElementById('memoList');
+    list.innerHTML = '';
+    memos.forEach(m => {
+        const coords = m.position;
+        const coordSummary = `(${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}, ${coords.z.toFixed(1)})`;
+        const item = document.createElement('div');
+        item.className = 'memo-item';
+        item.innerHTML = `
+            <div>
+                <strong>#${m.id + 1} ${coordSummary}</strong><br>
+                ${m.text.replace(/\n/g, '<br>').replace(coordSummary.replace(/[()]/g, ''), '')}
+            </div>
+            <button onclick="deleteMemo(${m.id})">削除</button>
+        `;
+        list.appendChild(item);
+    });
+}
 
         function initSpeechRecognition() {
             if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {

@@ -112,6 +112,7 @@
         let rightTriggerPressed=false, rightGripPressed=false;
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
+        let lastVRMemoPos = null;
 
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -528,18 +529,18 @@
             }
         }
 
-       function updateMemoList() {
+     function updateMemoList() {
     const list = document.getElementById('memoList');
     list.innerHTML = '';
     memos.forEach(m => {
         const coords = m.position;
-        const coordSummary = `(${coords.x.toFixed(1)}, ${coords.y.toFixed(1)}, ${coords.z.toFixed(1)})`;
+        const coordSummary = `(${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)})`;
         const item = document.createElement('div');
         item.className = 'memo-item';
         item.innerHTML = `
             <div>
-                <strong>#${m.id + 1} ${coordSummary}</strong><br>
-                ${m.text.replace(/\n/g, '<br>').replace(coordSummary.replace(/[()]/g, ''), '')}
+                <strong>#${m.id + 1}</strong> ${coordSummary}<br>
+                ${m.text.replace(/\n/g, '<br>')}
             </div>
             <button onclick="deleteMemo(${m.id})">削除</button>
         `;
@@ -733,7 +734,7 @@
                         debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
                         if(vrMemoMode) {
                             debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            placeVRMemo();
+                            ();
                             vrMemoMode=false;
                             debugInfo.push(`  >>> MEMO MODE OFF <<<`);
                         } else {
@@ -802,6 +803,11 @@
             const controllerPos = rightController.getWorldPosition(new THREE.Vector3());
             const controllerDir = rightController.getWorldDirection(new THREE.Vector3());
             pos = controllerPos.clone().add(controllerDir.multiplyScalar(2.0));
+            if (lastVRMemoPos && pos.distanceTo(lastVRMemoPos) < 0.05) {
+    pos.x += 0.2; // 20cmほど横にずらす
+}
+lastVRMemoPos = pos.clone();
+
             console.log('No hit, placing at ray end:', pos);
         }
         

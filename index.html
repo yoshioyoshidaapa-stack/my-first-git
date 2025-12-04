@@ -55,6 +55,10 @@
             <strong>PC:</strong> W/A/S/D移動, マウス視点, Q/Eズーム, Mメモモード<br>
             <strong>VR:</strong> 左スティック移動, 右スティック視点, A/B上下, 右トリガーズーム/メモ, Xボタン長押しメモモード切替
         </div>
+
+        <div id="debugPanel" style="position:absolute;bottom:10px;left:10px;padding:10px;background:rgba(0,0,0,0.7);color:#0f0;font-family: monospace; font-size:14px; max-width: 300px; max-height: 40vh; overflow-y: auto; z-index:9999;"></div>
+
+        
         <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl" />
         <button id="vrButton">VRモード開始</button>
         <button id="resetButton" class="btn">カメラリセット</button>
@@ -113,7 +117,14 @@
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
         let lastVRMemoPos = null;
-
+        
+function debugLog(msg) {
+    const panel = document.getElementById('debugPanel');
+    if (!panel) return;
+    // 新しいメッセージを追加してスクロールを一番下に
+    panel.innerHTML += msg + '<br>';
+    panel.scrollTop = panel.scrollHeight;
+}
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
             scene=new THREE.Scene();
@@ -361,7 +372,7 @@
             zoomLevel=Math.max(MIN_FOV,zoomLevel-5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
-            console.log(`ZOOM IN: ${oldZoom} -> ${zoomLevel}`);
+            debugLog(`ZOOM IN: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function zoomOut() {
@@ -369,7 +380,7 @@
             zoomLevel=Math.min(MAX_FOV,zoomLevel+5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
-            console.log(`ZOOM OUT: ${oldZoom} -> ${zoomLevel}`);
+            debugLog(`ZOOM OUT: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function resetCamera() {
@@ -462,9 +473,9 @@
         }
 
        function createMemo(pos, txt) {
-    console.log('=== createMemo START ===');
-    console.log('Position:', pos);
-    console.log('Text:', txt);
+    debugLog('=== createMemo START ===');
+    debugLog('Position:', pos);
+    debugLog('Text:', txt);
     
     // ワールド座標を追加
     const coords = pos.clone();
@@ -513,12 +524,12 @@
     sprite.scale.set(1, canvas.height / canvas.width, 1);
     sprite.name = `memo_${id}`;
     scene.add(sprite);
-    console.log('Sprite added to scene:', sprite.name);
+    debugLog('Sprite added to scene:', sprite.name);
     
     memos.push({ id, text: fullText, position: pos.clone(), sprite }); // fullTextを保存
-    console.log('Memo added to array, total:', memos.length);
+    debugLog('Memo added to array, total:', memos.length);
     updateMemoList();
-    console.log('=== createMemo END ===');
+    debugLog('=== createMemo END ===');
 }
         function deleteMemo(id) {
             const idx=memos.findIndex(m=>m.id===id);
@@ -771,7 +782,7 @@
         }
 
        function placeVRMemo() {
-    console.log('=== placeVRMemo START ===');
+    debugLog('=== placeVRMemo START ===');
     try {
         // ★ 右コントローラー（青い棒）のRaycasterを取得
         const rightController = controllers[1]; // 右コントローラー（index 1）
@@ -797,7 +808,7 @@
                 hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : 
                 rightController.getWorldDirection(new THREE.Vector3()).negate();
             pos = hit.point.clone().add(offset.multiplyScalar(0.1));
-            console.log('Hit at:', hit.point);
+            debugLog('Hit at:', hit.point);
         } else {
             // ヒットなしの場合、青い棒の先端2m先に配置
             const controllerPos = rightController.getWorldPosition(new THREE.Vector3());
@@ -808,19 +819,19 @@
 }
 lastVRMemoPos = pos.clone();
 
-            console.log('No hit, placing at ray end:', pos);
+            debugLog('No hit, placing at ray end:', pos);
         }
         
         const timestamp = new Date().toLocaleTimeString('ja-JP');
         const memoText = `VRメモ ${timestamp}`;
-        console.log('Creating memo at:', pos);
+        debugLog('Creating memo at:', pos);
         
         createMemo(pos, memoText);
         vrMemoMode = false; // メモモードOFF
     } catch (error) {
         console.error('Error in placeVRMemo:', error);
     }
-    console.log('=== placeVRMemo END ===');
+    debugLog('=== placeVRMemo END ===');
 }
 
         function animate() {

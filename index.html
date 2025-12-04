@@ -170,9 +170,29 @@
         }
 
      function setupVR() {
-    // ... 既存のvrButton部分はそのまま ...
+    const vrButton = document.getElementById('vrButton');
+    if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-vr').then(sup => {
+            if (sup) {
+                vrButton.onclick = async () => {
+                    if (!renderer.xr.isPresenting) {
+                        try {
+                            const s = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
+                            await renderer.xr.setSession(s);
+                            isVRMode = true;
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                };
+            } else {
+                vrButton.disabled = true;
+                vrButton.textContent = 'VR非対応';
+            }
+        });
+    }
     
-    // ターゲットレイ(ポインター)の作成 - cameraRigに追加
+    // ★ 以下、Raycaster対応コントローラー設定
     const c1 = renderer.xr.getController(0);
     cameraRig.add(c1);
     controllers.push(c1);
@@ -180,11 +200,11 @@
     cameraRig.add(c2);
     controllers.push(c2);
     
-    // ★ 新規追加：Raycasterを各コントローラーに保持
+    // Raycasterを各コントローラーに保持
     c1.userData.raycaster = new THREE.Raycaster();
     c2.userData.raycaster = new THREE.Raycaster();
     
-    // コントローラーグリップはそのまま
+    // コントローラーグリップ
     const geom = new THREE.BoxGeometry(0.05, 0.05, 0.15);
     const mat1 = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.5 });
     const mat2 = new THREE.MeshStandardMaterial({ color: 0x0000ff, emissive: 0x0000ff, emissiveIntensity: 0.5 });
@@ -199,13 +219,14 @@
     g2.add(mesh2);
     cameraRig.add(g2);
     
-    // レイ(ポインター線)の追加
+    // レイ(ポインター線)
     const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -2)]);
     const lineMat1 = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
     const lineMat2 = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
     c1.add(new THREE.Line(lineGeom, lineMat1));
     c2.add(new THREE.Line(lineGeom, lineMat2));
 }
+
 
         function createVRDebugPanel() {
             vrDebugCanvas=document.createElement('canvas');

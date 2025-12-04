@@ -169,7 +169,7 @@
             renderer.setAnimationLoop(animate);
         }
 
-           function setupVR() {
+      function setupVR() {
             const vrButton=document.getElementById('vrButton');
             if('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
@@ -189,21 +189,35 @@
                     }
                 });
             }
+            // ターゲットレイ(ポインター)の作成 - cameraRigに追加
             const c1=renderer.xr.getController(0);
-            scene.add(c1);
+            cameraRig.add(c1);
             controllers.push(c1);
             const c2=renderer.xr.getController(1);
-            scene.add(c2);
+            cameraRig.add(c2);
             controllers.push(c2);
-            const geom=new THREE.CylinderGeometry(0.01,0.02,0.1,8);
-            const mat1=new THREE.MeshStandardMaterial({color:0xff0000});
-            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff});
+            
+            // コントローラーグリップ(手の位置)の作成 - cameraRigに追加
+            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+            const mat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
+            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff,emissive:0x0000ff,emissiveIntensity:0.5});
             const g1=renderer.xr.getControllerGrip(0);
-            g1.add(new THREE.Mesh(geom,mat1));
-            scene.add(g1);
+            const mesh1=new THREE.Mesh(geom,mat1);
+            mesh1.position.z=-0.075;
+            g1.add(mesh1);
+            cameraRig.add(g1);
             const g2=renderer.xr.getControllerGrip(1);
-            g2.add(new THREE.Mesh(geom,mat2));
-            scene.add(g2);
+            const mesh2=new THREE.Mesh(geom,mat2);
+            mesh2.position.z=-0.075;
+            g2.add(mesh2);
+            cameraRig.add(g2);
+            
+            // レイ(ポインター線)の追加
+            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+            c1.add(new THREE.Line(lineGeom,lineMat1));
+            c2.add(new THREE.Line(lineGeom,lineMat2));
         }
         function createVRDebugPanel() {
             vrDebugCanvas=document.createElement('canvas');

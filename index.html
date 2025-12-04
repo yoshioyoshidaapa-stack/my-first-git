@@ -169,56 +169,44 @@
             renderer.setAnimationLoop(animate);
         }
 
-      function setupVR() {
-            const vrButton=document.getElementById('vrButton');
-            if('xr' in navigator) {
-                navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
-                    if(sup) {
-                        vrButton.onclick=async()=>{
-                            if(!renderer.xr.isPresenting) {
-                                try {
-                                    const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-                                    await renderer.xr.setSession(s);
-                                    isVRMode=true;
-                                } catch(e) {}
-                            }
-                        };
-                    } else {
-                        vrButton.disabled=true;
-                        vrButton.textContent='VR非対応';
-                    }
-                });
-            }
-            // ターゲットレイ(ポインター)の作成 - cameraRigに追加
-            const c1=renderer.xr.getController(0);
-            cameraRig.add(c1);
-            controllers.push(c1);
-            const c2=renderer.xr.getController(1);
-            cameraRig.add(c2);
-            controllers.push(c2);
-            
-            // コントローラーグリップ(手の位置)の作成 - cameraRigに追加
-            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-            const mat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
-            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff,emissive:0x0000ff,emissiveIntensity:0.5});
-            const g1=renderer.xr.getControllerGrip(0);
-            const mesh1=new THREE.Mesh(geom,mat1);
-            mesh1.position.z=-0.075;
-            g1.add(mesh1);
-            cameraRig.add(g1);
-            const g2=renderer.xr.getControllerGrip(1);
-            const mesh2=new THREE.Mesh(geom,mat2);
-            mesh2.position.z=-0.075;
-            g2.add(mesh2);
-            cameraRig.add(g2);
-            
-            // レイ(ポインター線)の追加
-            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-            c1.add(new THREE.Line(lineGeom,lineMat1));
-            c2.add(new THREE.Line(lineGeom,lineMat2));
-        }
+     function setupVR() {
+    // ... 既存のvrButton部分はそのまま ...
+    
+    // ターゲットレイ(ポインター)の作成 - cameraRigに追加
+    const c1 = renderer.xr.getController(0);
+    cameraRig.add(c1);
+    controllers.push(c1);
+    const c2 = renderer.xr.getController(1);
+    cameraRig.add(c2);
+    controllers.push(c2);
+    
+    // ★ 新規追加：Raycasterを各コントローラーに保持
+    c1.userData.raycaster = new THREE.Raycaster();
+    c2.userData.raycaster = new THREE.Raycaster();
+    
+    // コントローラーグリップはそのまま
+    const geom = new THREE.BoxGeometry(0.05, 0.05, 0.15);
+    const mat1 = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.5 });
+    const mat2 = new THREE.MeshStandardMaterial({ color: 0x0000ff, emissive: 0x0000ff, emissiveIntensity: 0.5 });
+    const g1 = renderer.xr.getControllerGrip(0);
+    const mesh1 = new THREE.Mesh(geom, mat1);
+    mesh1.position.z = -0.075;
+    g1.add(mesh1);
+    cameraRig.add(g1);
+    const g2 = renderer.xr.getControllerGrip(1);
+    const mesh2 = new THREE.Mesh(geom, mat2);
+    mesh2.position.z = -0.075;
+    g2.add(mesh2);
+    cameraRig.add(g2);
+    
+    // レイ(ポインター線)の追加
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -2)]);
+    const lineMat1 = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+    const lineMat2 = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
+    c1.add(new THREE.Line(lineGeom, lineMat1));
+    c2.add(new THREE.Line(lineGeom, lineMat2));
+}
+
         function createVRDebugPanel() {
             vrDebugCanvas=document.createElement('canvas');
             vrDebugCanvas.width=512;
@@ -760,27 +748,53 @@
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-        function placeVRMemo() {
-            console.log('=== placeVRMemo START ===');
-            try {
-                const direction=new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                console.log('Camera world direction:', direction);
-                
-                const position=camera.position.clone().add(direction.multiplyScalar(3));
-                console.log('Calculated memo position:', position);
-                
-                const timestamp=new Date().toLocaleTimeString('ja-JP');
-                const memoText=`VRメモ ${timestamp}`;
-                console.log('Creating memo with text:', memoText);
-                
-                createMemo(position, memoText);
-                console.log('Memo created successfully, total memos:', memos.length);
-            } catch(error) {
-                console.error('Error in placeVRMemo:', error);
-            }
-            console.log('=== placeVRMemo END ===');
+       function placeVRMemo() {
+    console.log('=== placeVRMemo START ===');
+    try {
+        // ★ 右コントローラー（青い棒）のRaycasterを取得
+        const rightController = controllers[1]; // 右コントローラー（index 1）
+        const raycaster = rightController.userData.raycaster;
+        
+        if (!raycaster) {
+            console.warn('Raycaster not found on right controller');
+            return;
         }
+        
+        // コントローラーのワールド行列からRaycasterを設定
+        raycaster.ray.origin.copy(rightController.getWorldPosition(new THREE.Vector3()));
+        raycaster.ray.direction.copy(rightController.getWorldDirection(new THREE.Vector3()));
+        
+        // シーン内の全オブジェクトとの交差判定
+        const hits = raycaster.intersectObjects(scene.children, true);
+        
+        let pos;
+        if (hits.length > 0) {
+            // 青い棒がヒットした位置に配置（表面から少し浮かせる）
+            const hit = hits[0];
+            const offset = hit.face ? 
+                hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : 
+                rightController.getWorldDirection(new THREE.Vector3()).negate();
+            pos = hit.point.clone().add(offset.multiplyScalar(0.1));
+            console.log('Hit at:', hit.point);
+        } else {
+            // ヒットなしの場合、青い棒の先端2m先に配置
+            const controllerPos = rightController.getWorldPosition(new THREE.Vector3());
+            const controllerDir = rightController.getWorldDirection(new THREE.Vector3());
+            pos = controllerPos.clone().add(controllerDir.multiplyScalar(2.0));
+            console.log('No hit, placing at ray end:', pos);
+        }
+        
+        const timestamp = new Date().toLocaleTimeString('ja-JP');
+        const memoText = `VRメモ ${timestamp}`;
+        console.log('Creating memo at:', pos);
+        
+        createMemo(pos, memoText);
+        vrMemoMode = false; // メモモードOFF
+    } catch (error) {
+        console.error('Error in placeVRMemo:', error);
+    }
+    console.log('=== placeVRMemo END ===');
+}
 
         function animate() {
             const time=performance.now();

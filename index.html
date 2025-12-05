@@ -744,33 +744,26 @@
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-        function placeVRMemo() {
+      function placeVRMemo() {
     console.log('=== placeVRMemo START ===');
     try {
-        // 右コントローラー（インデックス1）を使用
-        const controller = controllers[1];
-        if (!controller) {
-            console.error('Controller not found');
-            return;
-        }
+        const direction=new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        console.log('Camera world direction:', direction);
         
-        // コントローラーのワールド位置と向きを取得
-        const controllerPos = new THREE.Vector3();
-        const controllerDir = new THREE.Vector3(0, 0, -1);
+        const position=camera.position.clone().add(direction.multiplyScalar(0.5)); // 3→0.5に変更
+        console.log('Calculated memo position:', position);
         
-        controller.getWorldPosition(controllerPos);
-        controllerDir.applyQuaternion(controller.getWorldQuaternion(new THREE.Quaternion()));
-        
-        const position = controllerPos.clone().add(controllerDir.multiplyScalar(2));
-        
-        const timestamp = new Date().toLocaleTimeString('ja-JP');
-        const memoText = `VRメモ ${timestamp}`;
+        const timestamp=new Date().toLocaleTimeString('ja-JP');
+        const memoText=`VRメモ ${timestamp}`;
+        console.log('Creating memo with text:', memoText);
         
         createMemo(position, memoText);
-        console.log('Memo created at controller position:', position);
+        console.log('Memo created successfully, total memos:', memos.length);
     } catch(error) {
         console.error('Error in placeVRMemo:', error);
     }
+    console.log('=== placeVRMemo END ===');
 }
         function animate() {
             const time=performance.now();

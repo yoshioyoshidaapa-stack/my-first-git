@@ -745,27 +745,33 @@
         }
 
         function placeVRMemo() {
-            console.log('=== placeVRMemo START ===');
-            try {
-                const direction=new THREE.Vector3();
-                camera.getWorldDirection(direction);
-                console.log('Camera world direction:', direction);
-                
-                const position=camera.position.clone().add(direction.multiplyScalar(3));
-                console.log('Calculated memo position:', position);
-                
-                const timestamp=new Date().toLocaleTimeString('ja-JP');
-                const memoText=`VRメモ ${timestamp}`;
-                console.log('Creating memo with text:', memoText);
-                
-                createMemo(position, memoText);
-                console.log('Memo created successfully, total memos:', memos.length);
-            } catch(error) {
-                console.error('Error in placeVRMemo:', error);
-            }
-            console.log('=== placeVRMemo END ===');
+    console.log('=== placeVRMemo START ===');
+    try {
+        // 右コントローラー（インデックス1）を使用
+        const controller = controllers[1];
+        if (!controller) {
+            console.error('Controller not found');
+            return;
         }
-
+        
+        // コントローラーのワールド位置と向きを取得
+        const controllerPos = new THREE.Vector3();
+        const controllerDir = new THREE.Vector3(0, 0, -1);
+        
+        controller.getWorldPosition(controllerPos);
+        controllerDir.applyQuaternion(controller.getWorldQuaternion(new THREE.Quaternion()));
+        
+        const position = controllerPos.clone().add(controllerDir.multiplyScalar(2));
+        
+        const timestamp = new Date().toLocaleTimeString('ja-JP');
+        const memoText = `VRメモ ${timestamp}`;
+        
+        createMemo(position, memoText);
+        console.log('Memo created at controller position:', position);
+    } catch(error) {
+        console.error('Error in placeVRMemo:', error);
+    }
+}
         function animate() {
             const time=performance.now();
             const delta=(time-prevTime)/1000;

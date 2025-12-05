@@ -55,10 +55,6 @@
             <strong>PC:</strong> W/A/S/D移動, マウス視点, Q/Eズーム, Mメモモード<br>
             <strong>VR:</strong> 左スティック移動, 右スティック視点, A/B上下, 右トリガーズーム/メモ, Xボタン長押しメモモード切替
         </div>
-
-        <div id="debugPanel" style="position:absolute;bottom:10px;left:10px;padding:10px;background:rgba(0,0,0,0.7);color:#0f0;font-family: monospace; font-size:14px; max-width: 300px; max-height: 40vh; overflow-y: auto; z-index:9999;"></div>
-
-        
         <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl" />
         <button id="vrButton">VRモード開始</button>
         <button id="resetButton" class="btn">カメラリセット</button>
@@ -116,15 +112,7 @@
         let rightTriggerPressed=false, rightGripPressed=false;
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
-        let lastVRMemoPos = null;
-        
-function debugLog(msg) {
-    const panel = document.getElementById('debugPanel');
-    if (!panel) return;
-    // 新しいメッセージを追加してスクロールを一番下に
-    panel.innerHTML += msg + '<br>';
-    panel.scrollTop = panel.scrollHeight;
-}
+
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
             scene=new THREE.Scene();
@@ -181,65 +169,56 @@ function debugLog(msg) {
             renderer.setAnimationLoop(animate);
         }
 
-     function setupVR() {
-    const vrButton = document.getElementById('vrButton');
-    if ('xr' in navigator) {
-        navigator.xr.isSessionSupported('immersive-vr').then(sup => {
-            if (sup) {
-                vrButton.onclick = async () => {
-                    if (!renderer.xr.isPresenting) {
-                        try {
-                            const s = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-                            await renderer.xr.setSession(s);
-                            isVRMode = true;
-                        } catch (e) {
-                            console.error(e);
-                        }
+      function setupVR() {
+            const vrButton=document.getElementById('vrButton');
+            if('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
+                    if(sup) {
+                        vrButton.onclick=async()=>{
+                            if(!renderer.xr.isPresenting) {
+                                try {
+                                    const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
+                                    await renderer.xr.setSession(s);
+                                    isVRMode=true;
+                                } catch(e) {}
+                            }
+                        };
+                    } else {
+                        vrButton.disabled=true;
+                        vrButton.textContent='VR非対応';
                     }
-                };
-            } else {
-                vrButton.disabled = true;
-                vrButton.textContent = 'VR非対応';
+                });
             }
-        });
-    }
-    
-    // ★ 以下、Raycaster対応コントローラー設定
-    const c1 = renderer.xr.getController(0);
-    cameraRig.add(c1);
-    controllers.push(c1);
-    const c2 = renderer.xr.getController(1);
-    cameraRig.add(c2);
-    controllers.push(c2);
-    
-    // Raycasterを各コントローラーに保持
-    c1.userData.raycaster = new THREE.Raycaster();
-    c2.userData.raycaster = new THREE.Raycaster();
-    
-    // コントローラーグリップ
-    const geom = new THREE.BoxGeometry(0.05, 0.05, 0.15);
-    const mat1 = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 0.5 });
-    const mat2 = new THREE.MeshStandardMaterial({ color: 0x0000ff, emissive: 0x0000ff, emissiveIntensity: 0.5 });
-    const g1 = renderer.xr.getControllerGrip(0);
-    const mesh1 = new THREE.Mesh(geom, mat1);
-    mesh1.position.z = -0.075;
-    g1.add(mesh1);
-    cameraRig.add(g1);
-    const g2 = renderer.xr.getControllerGrip(1);
-    const mesh2 = new THREE.Mesh(geom, mat2);
-    mesh2.position.z = -0.075;
-    g2.add(mesh2);
-    cameraRig.add(g2);
-    
-    // レイ(ポインター線)
-    const lineGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -2)]);
-    const lineMat1 = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
-    const lineMat2 = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
-    c1.add(new THREE.Line(lineGeom, lineMat1));
-    c2.add(new THREE.Line(lineGeom, lineMat2));
-}
-
-
+            // ターゲットレイ(ポインター)の作成 - cameraRigに追加
+            const c1=renderer.xr.getController(0);
+            cameraRig.add(c1);
+            controllers.push(c1);
+            const c2=renderer.xr.getController(1);
+            cameraRig.add(c2);
+            controllers.push(c2);
+            
+            // コントローラーグリップ(手の位置)の作成 - cameraRigに追加
+            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+            const mat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:0.5});
+            const mat2=new THREE.MeshStandardMaterial({color:0x0000ff,emissive:0x0000ff,emissiveIntensity:0.5});
+            const g1=renderer.xr.getControllerGrip(0);
+            const mesh1=new THREE.Mesh(geom,mat1);
+            mesh1.position.z=-0.075;
+            g1.add(mesh1);
+            cameraRig.add(g1);
+            const g2=renderer.xr.getControllerGrip(1);
+            const mesh2=new THREE.Mesh(geom,mat2);
+            mesh2.position.z=-0.075;
+            g2.add(mesh2);
+            cameraRig.add(g2);
+            
+            // レイ(ポインター線)の追加
+            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+            c1.add(new THREE.Line(lineGeom,lineMat1));
+            c2.add(new THREE.Line(lineGeom,lineMat2));
+        }
         function createVRDebugPanel() {
             vrDebugCanvas=document.createElement('canvas');
             vrDebugCanvas.width=512;
@@ -372,7 +351,7 @@ function debugLog(msg) {
             zoomLevel=Math.max(MIN_FOV,zoomLevel-5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
-            debugLog(`ZOOM IN: ${oldZoom} -> ${zoomLevel}`);
+            console.log(`ZOOM IN: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function zoomOut() {
@@ -380,7 +359,7 @@ function debugLog(msg) {
             zoomLevel=Math.min(MAX_FOV,zoomLevel+5);
             camera.fov=zoomLevel;
             camera.updateProjectionMatrix();
-            debugLog(`ZOOM OUT: ${oldZoom} -> ${zoomLevel}`);
+            console.log(`ZOOM OUT: ${oldZoom} -> ${zoomLevel}`);
         }
 
         function resetCamera() {
@@ -472,65 +451,57 @@ function debugLog(msg) {
             pendingMemoPosition=null;
         }
 
-       function createMemo(pos, txt) {
-    debugLog('=== createMemo START ===');
-    debugLog('Position:', pos);
-    debugLog('Text:', txt);
-    
-    // ワールド座標を追加
-    const coords = pos.clone();
-    const coordText = `座標: (${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)})`;
-    const fullText = txt ? `${txt}\n\n${coordText}` : coordText;
-    
-    const id = memoCounter++;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 512;
-    
-    // テキストのサイズを事前計算
-    ctx.font = 'bold 32px Arial';
-    const lines = [];
-    fullText.split('\n').forEach(para => {
-        const words = para.split(' ');
-        let line = '';
-        words.forEach(word => {
-            const test = line + word + ' ';
-            if (ctx.measureText(test).width > 472 && line !== '') {
+        function createMemo(pos,txt) {
+            console.log('=== createMemo START ===');
+            console.log('Position:', pos);
+            console.log('Text:', txt);
+            
+            const id=memoCounter++;
+            const canvas=document.createElement('canvas');
+            const ctx=canvas.getContext('2d');
+            canvas.width=512;
+            ctx.font='bold 32px Arial';
+            const lines=[];
+            txt.split('\n').forEach(para=>{
+                const words=para.split(' ');
+                let line='';
+                words.forEach(word=>{
+                    const test=line+word+' ';
+                    if(ctx.measureText(test).width>472&&line!=='') {
+                        lines.push(line.trim());
+                        line=word+' ';
+                    } else {
+                        line=test;
+                    }
+                });
                 lines.push(line.trim());
-                line = word + ' ';
-            } else {
-                line = test;
-            }
-        });
-        lines.push(line.trim());
-    });
-    
-    canvas.height = (lines.length * 40) + 40;
-    ctx.fillStyle = '#ffd93d';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#000';
-    ctx.font = 'bold 32px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    let y = 20;
-    lines.forEach(line => {
-        ctx.fillText(line, 256, y);
-        y += 40;
-    });
-    
-    const tex = new THREE.CanvasTexture(canvas);
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
-    sprite.position.copy(pos);
-    sprite.scale.set(1, canvas.height / canvas.width, 1);
-    sprite.name = `memo_${id}`;
-    scene.add(sprite);
-    debugLog('Sprite added to scene:', sprite.name);
-    
-    memos.push({ id, text: fullText, position: pos.clone(), sprite }); // fullTextを保存
-    debugLog('Memo added to array, total:', memos.length);
-    updateMemoList();
-    debugLog('=== createMemo END ===');
-}
+            });
+            canvas.height=(lines.length*40)+40;
+            ctx.fillStyle='#ffd93d';
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle='#000';
+            ctx.font='bold 32px Arial';
+            ctx.textAlign='center';
+            ctx.textBaseline='top';
+            let y=20;
+            lines.forEach(line=>{
+                ctx.fillText(line,256,y);
+                y+=40;
+            });
+            const tex=new THREE.CanvasTexture(canvas);
+            const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex}));
+            sprite.position.copy(pos);
+            sprite.scale.set(1,canvas.height/canvas.width,1);
+            sprite.name=`memo_${id}`;
+            scene.add(sprite);
+            console.log('Sprite added to scene:', sprite.name);
+            
+            memos.push({id,text:txt,position:pos.clone(),sprite});
+            console.log('Memo added to array, total:', memos.length);
+            updateMemoList();
+            console.log('=== createMemo END ===');
+        }
+
         function deleteMemo(id) {
             const idx=memos.findIndex(m=>m.id===id);
             if(idx!==-1) {
@@ -540,24 +511,16 @@ function debugLog(msg) {
             }
         }
 
-     function updateMemoList() {
-    const list = document.getElementById('memoList');
-    list.innerHTML = '';
-    memos.forEach(m => {
-        const coords = m.position;
-        const coordSummary = `(${coords.x.toFixed(2)}, ${coords.y.toFixed(2)}, ${coords.z.toFixed(2)})`;
-        const item = document.createElement('div');
-        item.className = 'memo-item';
-        item.innerHTML = `
-            <div>
-                <strong>#${m.id + 1}</strong> ${coordSummary}<br>
-                ${m.text.replace(/\n/g, '<br>')}
-            </div>
-            <button onclick="deleteMemo(${m.id})">削除</button>
-        `;
-        list.appendChild(item);
-    });
-}
+        function updateMemoList() {
+            const list=document.getElementById('memoList');
+            list.innerHTML='';
+            memos.forEach(m=>{
+                const item=document.createElement('div');
+                item.className='memo-item';
+                item.innerHTML=`<div><strong>#${m.id+1}</strong>: ${m.text.replace(/\n/g,'<br>')}</div><button onclick="deleteMemo(${m.id})">削除</button>`;
+                list.appendChild(item);
+            });
+        }
 
         function initSpeechRecognition() {
             if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {
@@ -745,9 +708,9 @@ function debugLog(msg) {
                         debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
                         if(vrMemoMode) {
                             debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            placeVRMemo();  // ← これを追加
-    vrMemoMode=false;
-    debugInfo.push(`  >>> MEMO MODE OFF <<<`);
+                            placeVRMemo();
+                            vrMemoMode=false;
+                            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
                         } else {
                             debugInfo.push(`  >>> ZOOM OUT <<<`);
                             zoomOut();
@@ -781,58 +744,27 @@ function debugLog(msg) {
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-       function placeVRMemo() {
-    debugLog('=== placeVRMemo START ===');
-    try {
-        // ★ 右コントローラー（青い棒）のRaycasterを取得
-        const rightController = controllers[1]; // 右コントローラー（index 1）
-        const raycaster = rightController.userData.raycaster;
-        
-        if (!raycaster) {
-            console.warn('Raycaster not found on right controller');
-            return;
+        function placeVRMemo() {
+            console.log('=== placeVRMemo START ===');
+            try {
+                const direction=new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                console.log('Camera world direction:', direction);
+                
+                const position=camera.position.clone().add(direction.multiplyScalar(3));
+                console.log('Calculated memo position:', position);
+                
+                const timestamp=new Date().toLocaleTimeString('ja-JP');
+                const memoText=`VRメモ ${timestamp}`;
+                console.log('Creating memo with text:', memoText);
+                
+                createMemo(position, memoText);
+                console.log('Memo created successfully, total memos:', memos.length);
+            } catch(error) {
+                console.error('Error in placeVRMemo:', error);
+            }
+            console.log('=== placeVRMemo END ===');
         }
-        
-        // コントローラーのワールド行列からRaycasterを設定
-        raycaster.ray.origin.copy(rightController.getWorldPosition(new THREE.Vector3()));
-        raycaster.ray.direction.copy(rightController.getWorldDirection(new THREE.Vector3()));
-        
-        // シーン内の全オブジェクトとの交差判定
-        const hits = raycaster.intersectObjects(scene.children, true);
-        
-        let pos;
-        if (hits.length > 0) {
-            // 青い棒がヒットした位置に配置（表面から少し浮かせる）
-            const hit = hits[0];
-            const offset = hit.face ? 
-                hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : 
-                rightController.getWorldDirection(new THREE.Vector3()).negate();
-            pos = hit.point.clone().add(offset.multiplyScalar(0.1));
-            debugLog('Hit at:', hit.point);
-        } else {
-            // ヒットなしの場合、青い棒の先端2m先に配置
-            const controllerPos = rightController.getWorldPosition(new THREE.Vector3());
-            const controllerDir = rightController.getWorldDirection(new THREE.Vector3());
-            pos = controllerPos.clone().add(controllerDir.multiplyScalar(2.0));
-            if (lastVRMemoPos && pos.distanceTo(lastVRMemoPos) < 0.05) {
-    pos.x += 0.2; // 20cmほど横にずらす
-}
-lastVRMemoPos = pos.clone();
-
-            debugLog('No hit, placing at ray end:', pos);
-        }
-        
-        const timestamp = new Date().toLocaleTimeString('ja-JP');
-        const memoText = `VRメモ ${timestamp}`;
-        debugLog('Creating memo at:', pos);
-        
-        createMemo(pos, memoText);
-        vrMemoMode = false; // メモモードOFF
-    } catch (error) {
-        console.error('Error in placeVRMemo:', error);
-    }
-    debugLog('=== placeVRMemo END ===');
-}
 
         function animate() {
             const time=performance.now();

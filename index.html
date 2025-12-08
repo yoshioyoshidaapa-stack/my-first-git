@@ -747,16 +747,27 @@
       function placeVRMemo() {
     console.log('=== placeVRMemo START ===');
     try {
-        // カメラのワールド座標を取得
-        const cameraWorldPos = new THREE.Vector3();
-        camera.getWorldPosition(cameraWorldPos);
-        console.log('Camera world position:', cameraWorldPos);
+        // 右コントローラー（インデックス1）を取得
+        const rightController = controllers[1];
+        if (!rightController) {
+            console.error('Right controller not found');
+            return;
+        }
         
-        const direction = new THREE.Vector3();
-        camera.getWorldDirection(direction);
-        console.log('Camera world direction:', direction);
+        // コントローラーのワールド座標を取得
+        const controllerWorldPos = new THREE.Vector3();
+        rightController.getWorldPosition(controllerWorldPos);
+        console.log('Controller world position:', controllerWorldPos);
         
-        const position = cameraWorldPos.clone().add(direction.multiplyScalar(0.5));
+        // コントローラーが指している方向を取得（ローカルZ軸の-方向）
+        const direction = new THREE.Vector3(0, 0, -1);
+        const controllerWorldQuat = new THREE.Quaternion();
+        rightController.getWorldQuaternion(controllerWorldQuat);
+        direction.applyQuaternion(controllerWorldQuat);
+        console.log('Controller world direction:', direction);
+        
+        // コントローラーの先端から2メートル先にメモを配置
+        const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
         console.log('Calculated memo position:', position);
         
         const timestamp = new Date().toLocaleTimeString('ja-JP');

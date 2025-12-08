@@ -747,15 +747,20 @@
       function placeVRMemo() {
     console.log('=== placeVRMemo START ===');
     try {
-        const direction=new THREE.Vector3();
+        // カメラのワールド座標を取得
+        const cameraWorldPos = new THREE.Vector3();
+        camera.getWorldPosition(cameraWorldPos);
+        console.log('Camera world position:', cameraWorldPos);
+        
+        const direction = new THREE.Vector3();
         camera.getWorldDirection(direction);
         console.log('Camera world direction:', direction);
         
-        const position=camera.position.clone().add(direction.multiplyScalar(0.5)); // 3→0.5に変更
+        const position = cameraWorldPos.clone().add(direction.multiplyScalar(0.5));
         console.log('Calculated memo position:', position);
         
-        const timestamp=new Date().toLocaleTimeString('ja-JP');
-        const memoText=`VRメモ ${timestamp}`;
+        const timestamp = new Date().toLocaleTimeString('ja-JP');
+        const memoText = `VRメモ ${timestamp}`;
         console.log('Creating memo with text:', memoText);
         
         createMemo(position, memoText);

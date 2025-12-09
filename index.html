@@ -114,7 +114,7 @@
         
         let rightTriggerPressTime=0; // この行を追加
         
-        const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
+        const VERSION='v1.2.0', UPDATE_DATE='2025/12/09 10:55';
 
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -704,6 +704,8 @@
 
                    // 右トリガー(ボタン0) - メモ配置 or メモ編集 or ズームアウト
 const triggerBtn=gamepad.buttons[0];
+// 右トリガー(ボタン0) - メモ配置 or メモ編集 or ズームアウト
+const triggerBtn=gamepad.buttons[0];
 const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
 if(isTriggerPressed&&!rightTriggerPressed) {
@@ -716,16 +718,15 @@ if(isTriggerPressed&&!rightTriggerPressed) {
     const pressDuration=performance.now()-rightTriggerPressTime;
     debugInfo.push(`  Trigger HELD ${(pressDuration/1000).toFixed(1)}s`);
     
-    if(pressDuration>500) {
-        // 0.5秒以上長押し → メモ編集モード
+    if(pressDuration>500 && rightTriggerPressTime > 0) {
+        // 0.5秒以上長押し → メモ編集モード（一度だけ実行）
         debugInfo.push(`  >>> CHECKING FOR MEMO TO EDIT <<<`);
         checkAndEditMemo(controllers[1]);
-        rightTriggerPressed=false;
-        rightTriggerPressTime=0;
+        rightTriggerPressTime = -1; // 編集開始済みフラグ（負の値で判定）
     }
 } else if(!isTriggerPressed&&rightTriggerPressed) {
     // トリガーが離された
-    const pressDuration=performance.now()-rightTriggerPressTime;
+    const pressDuration = rightTriggerPressTime > 0 ? performance.now()-rightTriggerPressTime : 1000;
     debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
     
     if(pressDuration<500) {

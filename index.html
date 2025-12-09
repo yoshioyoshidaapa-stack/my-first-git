@@ -840,25 +840,38 @@ if(isTriggerPressed&&!rightTriggerPressed) {
 
 let editingMemo = null;
 
-startEditMemo 関数を以下のように修正してください：
-javascriptfunction startEditMemo(memo) {
+
+function startEditMemo(memo) {
     if(!recognition) return;
     
     editingMemo = memo;
     console.log('Starting edit for memo:', memo.id, 'Current text:', memo.text);
     
-    // メモの色を編集中の色（緑）に変更
-    memo.sprite.material.color.setHex(0x00ff00);
-    memo.sprite.material.needsUpdate = true;
+    // 編集中の枠を追加
+    const frame = new THREE.Mesh(
+        new THREE.PlaneGeometry(memo.sprite.scale.x * 1.2, memo.sprite.scale.y * 1.2),
+        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+    );
+    frame.position.copy(memo.sprite.position);
+    frame.position.z -= 0.01; // メモの少し後ろに配置
+    frame.name = 'editFrame';
+    scene.add(frame);
+    memo.editFrame = frame;
     
     recognition.onresult = ev => {
         const transcript = ev.results[0][0].transcript;
         console.log('New text from voice:', transcript);
         
+        // 枠を削除
+        if(editingMemo.editFrame) {
+            scene.remove(editingMemo.editFrame);
+            delete editingMemo.editFrame;
+        }
+        
         // メモの内容を更新
         editingMemo.text = transcript;
         
-        // スプライトを再作成（元の色に戻る）
+        // スプライトを再作成
         scene.remove(editingMemo.sprite);
         const newSprite = createMemoSprite(editingMemo.position, transcript);
         editingMemo.sprite = newSprite;
@@ -870,10 +883,10 @@ javascriptfunction startEditMemo(memo) {
     
     recognition.onerror = () => {
         console.error('Voice recognition error during edit');
-        // エラー時も色を戻す
-        if(editingMemo && editingMemo.sprite) {
-            editingMemo.sprite.material.color.setHex(0xffffff);
-            editingMemo.sprite.material.needsUpdate = true;
+        // エラー時も枠を削除
+        if(editingMemo && editingMemo.editFrame) {
+            scene.remove(editingMemo.editFrame);
+            delete editingMemo.editFrame;
         }
         editingMemo = null;
     };

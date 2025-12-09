@@ -840,11 +840,16 @@ if(isTriggerPressed&&!rightTriggerPressed) {
 
 let editingMemo = null;
 
-function startEditMemo(memo) {
+startEditMemo 関数を以下のように修正してください：
+javascriptfunction startEditMemo(memo) {
     if(!recognition) return;
     
     editingMemo = memo;
     console.log('Starting edit for memo:', memo.id, 'Current text:', memo.text);
+    
+    // メモの色を編集中の色（緑）に変更
+    memo.sprite.material.color.setHex(0x00ff00);
+    memo.sprite.material.needsUpdate = true;
     
     recognition.onresult = ev => {
         const transcript = ev.results[0][0].transcript;
@@ -853,7 +858,7 @@ function startEditMemo(memo) {
         // メモの内容を更新
         editingMemo.text = transcript;
         
-        // スプライトを再作成
+        // スプライトを再作成（元の色に戻る）
         scene.remove(editingMemo.sprite);
         const newSprite = createMemoSprite(editingMemo.position, transcript);
         editingMemo.sprite = newSprite;
@@ -865,6 +870,11 @@ function startEditMemo(memo) {
     
     recognition.onerror = () => {
         console.error('Voice recognition error during edit');
+        // エラー時も色を戻す
+        if(editingMemo && editingMemo.sprite) {
+            editingMemo.sprite.material.color.setHex(0xffffff);
+            editingMemo.sprite.material.needsUpdate = true;
+        }
         editingMemo = null;
     };
     

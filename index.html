@@ -765,25 +765,25 @@ if(isTriggerPressed&&!rightTriggerPressed) {
             updateVRDebugPanel(debugInfo.join('\n'));
         }
 
-      function placeVRMemo() {
+     function placeVRMemo() {
     console.log('=== placeVRMemo START ===');
     try {
-        // 左コントローラー（インデックス0）を取得 - 赤い棒
-        const leftController = controllers[0];
-        if (!leftController) {
-            console.error('Left controller not found');
+        // 右コントローラー（インデックス1）を取得 - 青い棒
+        const rightController = controllers[1];
+        if (!rightController) {
+            console.error('Right controller not found');
             return;
         }
         
         // コントローラーのワールド座標を取得
         const controllerWorldPos = new THREE.Vector3();
-        leftController.getWorldPosition(controllerWorldPos);
+        rightController.getWorldPosition(controllerWorldPos);
         console.log('Controller world position:', controllerWorldPos);
         
         // コントローラーが指している方向を取得（ローカルZ軸の-方向）
         const direction = new THREE.Vector3(0, 0, -1);
         const controllerWorldQuat = new THREE.Quaternion();
-        leftController.getWorldQuaternion(controllerWorldQuat);
+        rightController.getWorldQuaternion(controllerWorldQuat);
         direction.applyQuaternion(controllerWorldQuat);
         console.log('Controller world direction:', direction);
         

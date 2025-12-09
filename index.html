@@ -917,54 +917,60 @@
 
     let editingMemo = null;
 
-    function startEditMemo(memo) {
-        if(!recognition) {
-            document.getElementById('status').textContent = '音声認識が利用できません';
-            return;
-        }
-        editingMemo = memo;
-        const frame = new THREE.Mesh(
-            new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.05, memo.sprite.geometry.parameters.height * 1.05),
-            new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
-        );
-        frame.position.copy(memo.sprite.position);
-        frame.position.z -= 0.01;
-        frame.name = 'editFrame';
-        scene.add(frame);
-        memo.editFrame = frame;
-
-        recognition.onresult = ev => {
-            const transcript = ev.results[0][0].transcript;
-            if(editingMemo.editFrame) {
-                scene.remove(editingMemo.editFrame);
-                delete editingMemo.editFrame;
-            }
-            // replace mesh safely
-            if (editingMemo.sprite) scene.remove(editingMemo.sprite);
-            const newMesh = createMemoSprite(editingMemo.position, transcript);
-            editingMemo.sprite = newMesh;
-            editingMemo.text = transcript;
-            updateMemoList();
-            editingMemo = null;
-            document.getElementById('status').textContent = 'メモを更新しました';
-        };
-
-        recognition.onerror = (e) => {
-            console.error('Voice recognition error during edit', e);
-            if(editingMemo && editingMemo.editFrame) {
-                scene.remove(editingMemo.editFrame);
-                delete editingMemo.editFrame;
-            }
-            editingMemo = null;
-            document.getElementById('status').textContent = '音声認識エラー';
-        };
-
-        try {
-            recognition.start();
-        } catch (e) {
-            console.error('recognition.start error', e);
-        }
+function startEditMemo(memo) {
+    if(!recognition) {
+        document.getElementById('status').textContent = '音声認識が利用できません';
+        return;
     }
+    
+    // 前の編集中のメモの枠を削除
+    if(editingMemo && editingMemo.editFrame) {
+        scene.remove(editingMemo.editFrame);
+        delete editingMemo.editFrame;
+    }
+    
+    editingMemo = memo;
+    const frame = new THREE.Mesh(
+        new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.05, memo.sprite.geometry.parameters.height * 1.05),
+        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+    );
+    frame.position.copy(memo.sprite.position);
+    frame.position.z -= 0.01;
+    frame.name = 'editFrame';
+    scene.add(frame);
+    memo.editFrame = frame;
+
+    recognition.onresult = ev => {
+        const transcript = ev.results[0][0].transcript;
+        if(editingMemo.editFrame) {
+            scene.remove(editingMemo.editFrame);
+            delete editingMemo.editFrame;
+        }
+        if (editingMemo.sprite) scene.remove(editingMemo.sprite);
+        const newMesh = createMemoSprite(editingMemo.position, transcript);
+        editingMemo.sprite = newMesh;
+        editingMemo.text = transcript;
+        updateMemoList();
+        editingMemo = null;
+        document.getElementById('status').textContent = 'メモを更新しました';
+    };
+
+    recognition.onerror = (e) => {
+        console.error('Voice recognition error during edit', e);
+        if(editingMemo && editingMemo.editFrame) {
+            scene.remove(editingMemo.editFrame);
+            delete editingMemo.editFrame;
+        }
+        editingMemo = null;
+        document.getElementById('status').textContent = '音声認識エラー';
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error('recognition.start error', e);
+    }
+}
 
     function createMemoSprite(pos, txt) {
         // returns a Mesh plane (same as in createMemo)

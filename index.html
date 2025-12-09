@@ -111,6 +111,9 @@
         let vrDebugText=null, vrDebugCanvas=null;
         let rightTriggerPressed=false, rightGripPressed=false;
         let vrZoomLevel=0; // VR用ズーム（カメラ位置オフセット）
+        
+        let rightTriggerPressTime=0; // この行を追加
+        
         const VERSION='v1.1.1', UPDATE_DATE='2025/01/27 19:10';
 
         function init() {
@@ -451,56 +454,56 @@
             pendingMemoPosition=null;
         }
 
-        function createMemo(pos,txt) {
-            console.log('=== createMemo START ===');
-            console.log('Position:', pos);
-            console.log('Text:', txt);
-            
-            const id=memoCounter++;
-            const canvas=document.createElement('canvas');
-            const ctx=canvas.getContext('2d');
-            canvas.width=512;
-            ctx.font='bold 32px Arial';
-            const lines=[];
-            txt.split('\n').forEach(para=>{
-                const words=para.split(' ');
-                let line='';
-                words.forEach(word=>{
-                    const test=line+word+' ';
-                    if(ctx.measureText(test).width>472&&line!=='') {
-                        lines.push(line.trim());
-                        line=word+' ';
-                    } else {
-                        line=test;
-                    }
-                });
+       function createMemo(pos,txt) {
+    console.log('=== createMemo START ===');
+    console.log('Position:', pos);
+    console.log('Text:', txt);
+    
+    const id=memoCounter++;
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    canvas.width=512;
+    ctx.font='bold 32px Arial';
+    const lines=[];
+    txt.split('\n').forEach(para=>{
+        const words=para.split(' ');
+        let line='';
+        words.forEach(word=>{
+            const test=line+word+' ';
+            if(ctx.measureText(test).width>472&&line!=='') {
                 lines.push(line.trim());
-            });
-            canvas.height=(lines.length*40)+40;
-            ctx.fillStyle='#ffd93d';
-            ctx.fillRect(0,0,canvas.width,canvas.height);
-            ctx.fillStyle='#000';
-            ctx.font='bold 32px Arial';
-            ctx.textAlign='center';
-            ctx.textBaseline='top';
-            let y=20;
-            lines.forEach(line=>{
-                ctx.fillText(line,256,y);
-                y+=40;
-            });
-            const tex=new THREE.CanvasTexture(canvas);
-            const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex}));
-            sprite.position.copy(pos);
-            sprite.scale.set(1,canvas.height/canvas.width,1);
-            sprite.name=`memo_${id}`;
-            scene.add(sprite);
-            console.log('Sprite added to scene:', sprite.name);
-            
-            memos.push({id,text:txt,position:pos.clone(),sprite});
-            console.log('Memo added to array, total:', memos.length);
-            updateMemoList();
-            console.log('=== createMemo END ===');
-        }
+                line=word+' ';
+            } else {
+                line=test;
+            }
+        });
+        lines.push(line.trim());
+    });
+    canvas.height=(lines.length*40)+40;
+    ctx.fillStyle='#ffd93d';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#000';
+    ctx.font='bold 32px Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='top';
+    let y=20;
+    lines.forEach(line=>{
+        ctx.fillText(line,256,y);
+        y+=40;
+    });
+    const tex=new THREE.CanvasTexture(canvas);
+    const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex}));
+    sprite.position.copy(pos);
+    sprite.scale.set(1,canvas.height/canvas.width,1);
+    sprite.name=`memo_${id}`;  // ← ここだけ修正（= を追加）
+    scene.add(sprite);
+    console.log('Sprite added to scene:', sprite.name);
+    
+    memos.push({id,text:txt,position:pos.clone(),sprite});
+    console.log('Memo added to array, total:', memos.length);
+    updateMemoList();
+    console.log('=== createMemo END ===');
+}
 
         function deleteMemo(id) {
             const idx=memos.findIndex(m=>m.id===id);
@@ -699,30 +702,48 @@
                         }
                     }
 
-                    // 右トリガー(ボタン0) - メモ配置 or ズームアウト
-                    const triggerBtn=gamepad.buttons[0];
-                    const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
-                    
-                    if(isTriggerPressed&&!rightTriggerPressed) {
-                        // トリガーが押された瞬間
-                        debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
-                        if(vrMemoMode) {
-                            debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            placeVRMemo();
-                            vrMemoMode=false;
-                            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
-                        } else {
-                            debugInfo.push(`  >>> ZOOM OUT <<<`);
-                            zoomOut();
-                        }
-                        rightTriggerPressed=true;
-                    } else if(!isTriggerPressed&&rightTriggerPressed) {
-                        // トリガーが離された
-                        debugInfo.push(`  Trigger UP`);
-                        rightTriggerPressed=false;
-                    } else if(isTriggerPressed) {
-                        debugInfo.push(`  Trigger HELD`);
-                    }
+                   // 右トリガー(ボタン0) - メモ配置 or メモ編集 or ズームアウト
+const triggerBtn=gamepad.buttons[0];
+const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
+
+if(isTriggerPressed&&!rightTriggerPressed) {
+    // トリガーが押された瞬間
+    rightTriggerPressTime=performance.now();
+    debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
+    rightTriggerPressed=true;
+} else if(isTriggerPressed&&rightTriggerPressed) {
+    // トリガーを押し続けている
+    const pressDuration=performance.now()-rightTriggerPressTime;
+    debugInfo.push(`  Trigger HELD ${(pressDuration/1000).toFixed(1)}s`);
+    
+    if(pressDuration>500) {
+        // 0.5秒以上長押し → メモ編集モード
+        debugInfo.push(`  >>> CHECKING FOR MEMO TO EDIT <<<`);
+        checkAndEditMemo(controllers[1]);
+        rightTriggerPressed=false;
+        rightTriggerPressTime=0;
+    }
+} else if(!isTriggerPressed&&rightTriggerPressed) {
+    // トリガーが離された
+    const pressDuration=performance.now()-rightTriggerPressTime;
+    debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
+    
+    if(pressDuration<500) {
+        // 短押し → メモ配置 or ズームアウト
+        if(vrMemoMode) {
+            debugInfo.push(`  >>> PLACING MEMO <<<`);
+            placeVRMemo();
+            vrMemoMode=false;
+            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
+        } else {
+            debugInfo.push(`  >>> ZOOM OUT <<<`);
+            zoomOut();
+        }
+    }
+    
+    rightTriggerPressed=false;
+    rightTriggerPressTime=0;
+}
 
                     // 右グリップ(ボタン1) - ズームイン
                     const gripBtn=gamepad.buttons[1];
@@ -781,6 +802,115 @@
     }
     console.log('=== placeVRMemo END ===');
 }
+
+        function checkAndEditMemo(controller) {
+    console.log('=== checkAndEditMemo START ===');
+    try {
+        // コントローラーからレイキャストを飛ばす
+        const raycaster = new THREE.Raycaster();
+        const controllerWorldPos = new THREE.Vector3();
+        const controllerWorldQuat = new THREE.Quaternion();
+        controller.getWorldPosition(controllerWorldPos);
+        controller.getWorldQuaternion(controllerWorldQuat);
+        
+        const direction = new THREE.Vector3(0, 0, -1);
+        direction.applyQuaternion(controllerWorldQuat);
+        
+        raycaster.set(controllerWorldPos, direction);
+        
+        // メモスプライトだけをチェック
+        const memoSprites = memos.map(m => m.sprite);
+        const hits = raycaster.intersectObjects(memoSprites, false);
+        
+        if(hits.length > 0) {
+            const hitSprite = hits[0].object;
+            const memo = memos.find(m => m.sprite === hitSprite);
+            if(memo) {
+                console.log('Found memo to edit:', memo.id);
+                startEditMemo(memo);
+            }
+        } else {
+            console.log('No memo found in raycast');
+        }
+    } catch(error) {
+        console.error('Error in checkAndEditMemo:', error);
+    }
+    console.log('=== checkAndEditMemo END ===');
+}
+
+let editingMemo = null;
+
+function startEditMemo(memo) {
+    if(!recognition) return;
+    
+    editingMemo = memo;
+    console.log('Starting edit for memo:', memo.id, 'Current text:', memo.text);
+    
+    recognition.onresult = ev => {
+        const transcript = ev.results[0][0].transcript;
+        console.log('New text from voice:', transcript);
+        
+        // メモの内容を更新
+        editingMemo.text = transcript;
+        
+        // スプライトを再作成
+        scene.remove(editingMemo.sprite);
+        const newSprite = createMemoSprite(editingMemo.position, transcript);
+        editingMemo.sprite = newSprite;
+        
+        updateMemoList();
+        editingMemo = null;
+        console.log('Memo updated successfully');
+    };
+    
+    recognition.onerror = () => {
+        console.error('Voice recognition error during edit');
+        editingMemo = null;
+    };
+    
+    recognition.start();
+}
+
+function createMemoSprite(pos, txt) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512;
+    ctx.font = 'bold 32px Arial';
+    const lines = [];
+    txt.split('\n').forEach(para => {
+        const words = para.split(' ');
+        let line = '';
+        words.forEach(word => {
+            const test = line + word + ' ';
+            if(ctx.measureText(test).width > 472 && line !== '') {
+                lines.push(line.trim());
+                line = word + ' ';
+            } else {
+                line = test;
+            }
+        });
+        lines.push(line.trim());
+    });
+    canvas.height = (lines.length * 40) + 40;
+    ctx.fillStyle = '#ffd93d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    let y = 20;
+    lines.forEach(line => {
+        ctx.fillText(line, 256, y);
+        y += 40;
+    });
+    const tex = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map: tex}));
+    sprite.position.copy(pos);
+    sprite.scale.set(0.3, (canvas.height / canvas.width) * 0.3, 1);
+    scene.add(sprite);
+    return sprite;
+}
+        
         function animate() {
             const time=performance.now();
             const delta=(time-prevTime)/1000;

@@ -127,6 +127,8 @@
     let rightTriggerPressed=false, rightGripPressed=false;
     let vrZoomLevel=0;
     let rightTriggerPressTime=0;
+        let editingMemo = null;
+let hoveredMemo = null; // この行を追加
 
     const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/09';
 
@@ -797,21 +799,67 @@
                 }
             }
 
-            if(inputSource.handedness==='right') {
-                const axes=gamepad.axes;
-                if(axes.length>=4) {
-                    const rotX=axes[2]||0;
-                    const rotY=axes[3]||0;
-                    if(Math.abs(rotX)>0.1) {
-                        cameraRig.rotation.y-=rotX*VR_ROTATION_SPEED*delta;
-                        debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
-                    }
-                    if(Math.abs(rotY)>0.1) {
-                        camera.rotation.x-=rotY*VR_ROTATION_SPEED*delta;
-                        camera.rotation.x=Math.max(-Math.PI/3,Math.min(Math.PI/3,camera.rotation.x));
-                        debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
-                    }
-                }
+           if(inputSource.handedness==='right') {
+    const axes=gamepad.axes;
+    if(axes.length>=4) {
+        const rotX=axes[2]||0;
+        const rotY=axes[3]||0;
+        if(Math.abs(rotX)>0.1) {
+            cameraRig.rotation.y-=rotX*VR_ROTATION_SPEED*delta;
+            debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
+        }
+        if(Math.abs(rotY)>0.1) {
+            camera.rotation.x-=rotY*VR_ROTATION_SPEED*delta;
+            camera.rotation.x=Math.max(-Math.PI/3,Math.min(Math.PI/3,camera.rotation.x));
+            debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
+        }
+    }
+
+    // ホバー検出（ここに追加）
+    try {
+        const raycaster = new THREE.Raycaster();
+        const controllerWorldPos = new THREE.Vector3();
+        const controllerWorldQuat = new THREE.Quaternion();
+        controllers[1].getWorldPosition(controllerWorldPos);
+        controllers[1].getWorldQuaternion(controllerWorldQuat);
+        const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
+        raycaster.set(controllerWorldPos, direction);
+        raycaster.near = 0.01;
+        raycaster.far = 20;
+        const memoObjs = memos.map(m => m.sprite).filter(Boolean);
+        const hits = raycaster.intersectObjects(memoObjs, false);
+        
+        // 前回ホバーしていたメモを元に戻す
+        if(hoveredMemo && hoveredMemo.hoverFrame) {
+            scene.remove(hoveredMemo.hoverFrame);
+            delete hoveredMemo.hoverFrame;
+            hoveredMemo = null;
+        }
+        
+        // 新しくホバーしているメモにハイライトを追加
+        if(hits.length > 0) {
+            const hitObj = hits[0].object;
+            const memo = memos.find(m => m.sprite === hitObj);
+            if(memo && memo !== editingMemo) { // 編集中でないメモのみ
+                hoveredMemo = memo;
+                const hoverFrame = new THREE.Mesh(
+                    new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.1, memo.sprite.geometry.parameters.height * 1.1),
+                    new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }) // シアン色
+                );
+                hoverFrame.position.copy(memo.sprite.position);
+                hoverFrame.position.z -= 0.005;
+                hoverFrame.name = 'hoverFrame';
+                scene.add(hoverFrame);
+                memo.hoverFrame = hoverFrame;
+                debugInfo.push(`  >>> HOVERING MEMO #${memo.id} <<<`);
+            }
+        }
+    } catch(e) {
+        console.error('Hover detection error', e);
+    }
+
+    // ここから右トリガー処理（既存のコード）
+ 
 
                 const triggerBtn=gamepad.buttons[0];
                 const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
@@ -931,8 +979,8 @@ function startEditMemo(memo) {
     
     editingMemo = memo;
     const frame = new THREE.Mesh(
-        new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.05, memo.sprite.geometry.parameters.height * 1.05),
-        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.25, side: THREE.DoubleSide })
+        new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.15, memo.sprite.geometry.parameters.height * 1.15), // 1.05 -> 1.15 に変更
+        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide }) // opacity 0.25 -> 0.4
     );
     frame.position.copy(memo.sprite.position);
     frame.position.z -= 0.01;
@@ -971,7 +1019,6 @@ function startEditMemo(memo) {
         console.error('recognition.start error', e);
     }
 }
-
     function createMemoSprite(pos, txt) {
         // returns a Mesh plane (same as in createMemo)
         const canvas = document.createElement('canvas');

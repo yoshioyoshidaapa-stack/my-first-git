@@ -861,38 +861,36 @@ let hoveredMemo = null; // この行を追加
     // ここから右トリガー処理（既存のコード）
  
 
-                const triggerBtn=gamepad.buttons[0];
-                const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
+               const triggerBtn=gamepad.buttons[0];
+const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
-                if(isTriggerPressed&&!rightTriggerPressed) {
-                    rightTriggerPressTime=performance.now();
-                    debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
-                    rightTriggerPressed=true;
-                } else if(isTriggerPressed&&rightTriggerPressed) {
-                    const pressDuration=performance.now()-rightTriggerPressTime;
-                    debugInfo.push(`  Trigger HELD ${(pressDuration/1000).toFixed(1)}s`);
-                    if(pressDuration>500 && rightTriggerPressTime > 0) {
-                        debugInfo.push(`  >>> CHECKING FOR MEMO TO EDIT <<<`);
-                        checkAndEditMemo(controllers[1]);
-                        rightTriggerPressTime = -1;
-                    }
-                } else if(!isTriggerPressed&&rightTriggerPressed) {
-                    const pressDuration = rightTriggerPressTime > 0 ? performance.now()-rightTriggerPressTime : 1000;
-                    debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
-                    if(pressDuration<500) {
-                        if(vrMemoMode) {
-                            debugInfo.push(`  >>> PLACING MEMO <<<`);
-                            placeVRMemo();
-                            vrMemoMode=false;
-                            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
-                        } else {
-                            debugInfo.push(`  >>> ZOOM OUT <<<`);
-                            cameraRig.translateZ(0.5);
-                        }
-                    }
-                    rightTriggerPressed=false;
-                    rightTriggerPressTime=0;
-                }
+if(isTriggerPressed&&!rightTriggerPressed) {
+    rightTriggerPressTime=performance.now();
+    debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
+    rightTriggerPressed=true;
+} else if(isTriggerPressed&&rightTriggerPressed) {
+    const pressDuration=performance.now()-rightTriggerPressTime;
+    debugInfo.push(`  Trigger HELD ${(pressDuration/1000).toFixed(1)}s`);
+    if(pressDuration>500 && rightTriggerPressTime > 0) {
+        debugInfo.push(`  >>> CHECKING FOR MEMO TO EDIT <<<`);
+        checkAndEditMemo(controllers[1]);
+        rightTriggerPressTime = -1;
+    }
+} else if(!isTriggerPressed&&rightTriggerPressed) {
+    const pressDuration = rightTriggerPressTime > 0 ? performance.now()-rightTriggerPressTime : 1000;
+    debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
+    if(pressDuration<500) {
+        if(vrMemoMode) {
+            debugInfo.push(`  >>> PLACING MEMO <<<`);
+            placeVRMemo();
+            vrMemoMode=false;
+            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
+        }
+        // ズーム機能を削除（else部分を削除）
+    }
+    rightTriggerPressed=false;
+    rightTriggerPressTime=0;
+}
 
                 const gripBtn=gamepad.buttons[1];
                 const isGripPressed=gripBtn&&gripBtn.pressed;

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR GLBショップウォークスルー（安定版 - 最小修正）</title>
+    <title>VR GLBショップウォークスルー（安定版）</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #container { width: 100vw; height: 100vh; cursor: grab; }
@@ -100,11 +100,10 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
     <script>
         /*************************************************************************
-         最小修正版：元の構造はそのままに、表示消失やクラッシュ要因をピンポイント修正
-         - 元のファイルのロジックを維持
-         - createMemo / createMemoSprite の二重追加、スケール、userData を安定化
-         - VR デバッグパネルのレンダーテクスチャ更新確実化
-         - コントローラーの表示メッシュを視認性良く復元
+         フル安定版 index.html
+         - 元のUI/機能を壊さずに、メモ選択（Raycast）を確実に動作させる修正を適用
+         - createMemo / createMemoSprite の SpriteMaterial と scale を統一し当たり判定安定化
+         - VR デバッグパネル、コントローラー表示、音声編集フローを安定化
         *************************************************************************/
 
         let scene, camera, renderer, cameraRig;
@@ -121,7 +120,7 @@
         let vrZoomLevel=0;
         let rightTriggerPressTime=0;
 
-        const VERSION='v1.3.1', UPDATE_DATE='2025/12/09 11:30';
+        const VERSION='v1.3.3', UPDATE_DATE='2025/12/09 12:05';
 
         function init() {
             document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -217,7 +216,6 @@
             }
 
             // controllers (ensure we add both controller and grip visuals)
-            // Controller (pointer)
             const c1=renderer.xr.getController(0);
             cameraRig.add(c1);
             controllers.push(c1);
@@ -244,7 +242,6 @@
             const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
             const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
             const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-            // attach lines to controllers so they are visible in XR
             c1.add(new THREE.Line(lineGeom,lineMat1));
             c2.add(new THREE.Line(lineGeom,lineMat2));
         }
@@ -333,7 +330,6 @@
                     if(!n.material)n.material=new THREE.MeshStandardMaterial({color:0xaaa});
                 }
             });
-            // center model (keep original logic)
             const box=new THREE.Box3().setFromObject(model);
             const center=box.getCenter(new THREE.Vector3());
             model.position.set(-center.x,-box.min.y,-center.z);
@@ -526,7 +522,12 @@
     });
     const tex=new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;
-    const material=new THREE.SpriteMaterial({map:tex});
+    const material = new THREE.SpriteMaterial({
+    map: tex,
+    depthTest: true,
+    depthWrite: false,
+    transparent: true
+});
     const sprite=new THREE.Sprite(material);
     sprite.position.copy(pos);
     // choose a stable base scale so it is visible but not massive
@@ -651,6 +652,7 @@
             debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
             debugInfo.push('');
 
+
             for(let i=0;i<session.inputSources.length;i++) {
                 const inputSource=session.inputSources[i];
                 const gamepad=inputSource.gamepad;
@@ -720,18 +722,18 @@
                         xButtonCooldown=false;
                     }
 
-                    for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
-                        if(gamepad.buttons[btnIdx].pressed&&btnIdx!==4) {
-                            if(btnIdx===0) {
-                                cameraRig.position.y+=VR_MOVE_SPEED*delta;
-                                debugInfo.push(`  UP!`);
-                            } else if(btnIdx===1) {
-                                cameraRig.position.y-=VR_MOVE_SPEED*delta;
-                                if(cameraRig.position.y<0)cameraRig.position.y=0;
-                                debugInfo.push(`  DOWN!`);
-                            }
+                for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
+                    if(gamepad.buttons[btnIdx].pressed&&btnIdx!==4) {
+                        if(btnIdx===0) {
+                            cameraRig.position.y+=VR_MOVE_SPEED*delta;
+                            debugInfo.push(`  UP!`);
+                        } else if(btnIdx===1) {
+                            cameraRig.position.y-=VR_MOVE_SPEED*delta;
+                            if(cameraRig.position.y<0)cameraRig.position.y=0;
+                            debugInfo.push(`  DOWN!`);
                         }
                     }
+                }
                 }
 
                 if(inputSource.handedness==='right') {
@@ -779,7 +781,6 @@ if(isTriggerPressed&&!rightTriggerPressed) {
             debugInfo.push(`  >>> MEMO MODE OFF <<<`);
         } else {
             debugInfo.push(`  >>> ZOOM OUT <<<`);
-            // VR: move rig backwards for zoom-out
             cameraRig.translateZ(0.5);
         }
     }
@@ -942,11 +943,20 @@ function createMemoSprite(pos, txt) {
     });
     const tex = new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map: tex}));
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: tex,
+    depthTest: true,
+    transparent: true,
+    depthWrite: false
+}));
+
     sprite.position.copy(pos);
-    // smaller default scale than earlier createMemo to avoid huge sizes
+    // scale set to match createMemo's scale for consistent ray hits
     const aspect = canvas.height / canvas.width;
-    sprite.scale.set(0.3, (canvas.height / canvas.width) * 0.3, 1);
+    sprite.scale.set(0.5, 0.5 * aspect, 1);
+    // ensure userData aspect present
+    sprite.userData = sprite.userData || {};
+    sprite.userData.aspect = aspect;
     scene.add(sprite);
     return sprite;
 }

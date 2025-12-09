@@ -804,8 +804,9 @@ if(isTriggerPressed&&!rightTriggerPressed) {
     console.log('=== placeVRMemo END ===');
 }
 
-        function checkAndEditMemo(controller) {
+      function checkAndEditMemo(controller) {
     console.log('=== checkAndEditMemo START ===');
+    console.log('Total memos:', memos.length);
     try {
         // コントローラーからレイキャストを飛ばす
         const raycaster = new THREE.Raycaster();
@@ -814,24 +815,33 @@ if(isTriggerPressed&&!rightTriggerPressed) {
         controller.getWorldPosition(controllerWorldPos);
         controller.getWorldQuaternion(controllerWorldQuat);
         
+        console.log('Controller position:', controllerWorldPos);
+        
         const direction = new THREE.Vector3(0, 0, -1);
         direction.applyQuaternion(controllerWorldQuat);
+        console.log('Controller direction:', direction);
         
         raycaster.set(controllerWorldPos, direction);
         
         // メモスプライトだけをチェック
         const memoSprites = memos.map(m => m.sprite);
+        console.log('Checking', memoSprites.length, 'memo sprites');
+        
         const hits = raycaster.intersectObjects(memoSprites, false);
+        console.log('Raycast hits:', hits.length);
         
         if(hits.length > 0) {
+            console.log('Hit distance:', hits[0].distance);
             const hitSprite = hits[0].object;
             const memo = memos.find(m => m.sprite === hitSprite);
             if(memo) {
-                console.log('Found memo to edit:', memo.id);
+                console.log('Found memo to edit:', memo.id, memo.text);
                 startEditMemo(memo);
+            } else {
+                console.log('ERROR: Hit sprite but memo not found in array');
             }
         } else {
-            console.log('No memo found in raycast');
+            console.log('No memo found in raycast - memos might be too far or not in direction');
         }
     } catch(error) {
         console.error('Error in checkAndEditMemo:', error);

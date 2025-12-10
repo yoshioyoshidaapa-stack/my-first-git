@@ -130,7 +130,7 @@
         let editingMemo = null;
 let hoveredMemo = null; // この行を追加
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/09';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/10_1';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -892,17 +892,7 @@ if(isTriggerPressed&&!rightTriggerPressed) {
     rightTriggerPressTime=0;
 }
 
-                const gripBtn=gamepad.buttons[1];
-                const isGripPressed=gripBtn&&gripBtn.pressed;
-                if(isGripPressed&&!rightGripPressed) {
-                    debugInfo.push(`  >>> GRIP - ZOOM IN <<<`);
-                    cameraRig.translateZ(-0.4);
-                    rightGripPressed=true;
-                } else if(!isGripPressed&&rightGripPressed) {
-                    rightGripPressed=false;
-                } else if(isGripPressed) {
-                    debugInfo.push(`  Grip HELD`);
-                }
+                
             }
             debugInfo.push('');
         }

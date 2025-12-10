@@ -122,7 +122,7 @@
     const MIN_FOV=30, MAX_FOV=100, PLAYER_HEIGHT=1.6, MOVE_SPEED=80, VR_MOVE_SPEED=10, VR_ROTATION_SPEED=1.5;
     let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
     let recognition=null, isRecording=false, pendingMemoPosition=null;
-    let vrMemoMode=false, xButtonPressTime=0, xButtonCooldown=false;
+    let vrMemoMode=true; 
     let vrDebugText=null, vrDebugCanvas=null;
     let rightTriggerPressed=false, rightGripPressed=false;
     let vrZoomLevel=0;
@@ -714,7 +714,7 @@ let hoveredMemo = null; // この行を追加
             return;
         }
         let debugInfo=['VR Debug',''];
-        if(vrMemoMode) debugInfo.push('=== MEMO MODE: ON ==='); else debugInfo.push('=== MEMO MODE: OFF ===');
+        debugInfo.push('=== MEMO MODE: ALWAYS ON ===');
         debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
         debugInfo.push('');
 
@@ -879,15 +879,12 @@ if(isTriggerPressed&&!rightTriggerPressed) {
 } else if(!isTriggerPressed&&rightTriggerPressed) {
     const pressDuration = rightTriggerPressTime > 0 ? performance.now()-rightTriggerPressTime : 1000;
     debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
+    
     if(pressDuration<500) {
-        if(vrMemoMode) {
-            debugInfo.push(`  >>> PLACING MEMO <<<`);
-            placeVRMemo();
-            vrMemoMode=false;
-            debugInfo.push(`  >>> MEMO MODE OFF <<<`);
-        }
-        // ズーム機能を削除（else部分を削除）
-    }
+    // 短押しでメモ配置
+    debugInfo.push(`  >>> PLACING MEMO <<<`);
+    placeVRMemo();
+}
     rightTriggerPressed=false;
     rightTriggerPressTime=0;
 }

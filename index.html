@@ -1091,9 +1091,9 @@ function showVRDeleteConfirm(memo) {
     ctx.fillText('このメモを削除しますか?', 256, 60);
     ctx.font = 'bold 24px Arial';
     ctx.fillStyle = '#ff0000';
-    ctx.fillText('左トリガー: 削除', 256, 130);
+    ctx.fillText('Aボタン: 削除', 256, 130);
     ctx.fillStyle = '#00ff00';
-    ctx.fillText('右トリガー: キャンセル', 256, 170);
+    ctx.fillText('Bボタン: キャンセル', 256, 170);
     
     const bgTex = new THREE.CanvasTexture(bgCanvas);
     const bgMesh = new THREE.Mesh(
@@ -1122,15 +1122,22 @@ function handleDeleteConfirmInput(session) {
         const gamepad = inputSource.gamepad;
         if(!gamepad) continue;
         
-        const trigger = gamepad.buttons[0];
-        if(trigger && trigger.pressed) {
-            if(inputSource.handedness === 'left') {
+        // 左コントローラーのAボタン（ボタン0）で削除
+        if(inputSource.handedness === 'left') {
+            const aButton = gamepad.buttons[0];
+            if(aButton && aButton.pressed) {
                 deleteMemo(pendingDeleteMemo.id);
                 scene.remove(panel);
                 pendingDeleteMemo = null;
                 hoveredMemo = null;
                 return;
-            } else if(inputSource.handedness === 'right') {
+            }
+        }
+        
+        // 左コントローラーのBボタン（ボタン1）でキャンセル
+        if(inputSource.handedness === 'left') {
+            const bButton = gamepad.buttons[1];
+            if(bButton && bButton.pressed) {
                 scene.remove(panel);
                 pendingDeleteMemo = null;
                 return;

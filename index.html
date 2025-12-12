@@ -860,22 +860,30 @@ let pendingDeleteMemo = null; // ← この行も追加されています
     } catch(e) {
         console.error('Hover detection error', e);
     }
-
-    // ここから右トリガー処理（既存のコード）
- // ボタン1（Bボタン）で削除
-const btn1=gamepad.buttons[1];
-const isBtn1Pressed=btn1&&btn1.pressed;
-if(isBtn1Pressed&&!btn1WasPressed) {
-    if(hoveredMemo) {
-        debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
-        showVRDeleteConfirm(hoveredMemo);
+// ボタン1（Bボタン）で削除
+    const btn1=gamepad.buttons[1];
+    const isBtn1Pressed=btn1&&btn1.pressed;
+    if(isBtn1Pressed&&!btn1WasPressed) {
+        if(hoveredMemo) {
+            debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
+            showVRDeleteConfirm(hoveredMemo);
+        }
     }
-}
-btn1WasPressed=isBtn1Pressed;
+    btn1WasPressed=isBtn1Pressed;
+    // ここから右トリガー処理（既存のコード）
+          // ボタン1（Bボタン）で削除
+    const btn1=gamepad.buttons[1];
+    const isBtn1Pressed=btn1&&btn1.pressed;
+    if(isBtn1Pressed&&!btn1WasPressed) {
+        if(hoveredMemo) {
+            debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
+            showVRDeleteConfirm(hoveredMemo);
+        }
+    }
+    btn1WasPressed=isBtn1Pressed;
 
-               const triggerBtn=gamepad.buttons[0];
+    const triggerBtn=gamepad.buttons[0];
 const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
-
 if(isTriggerPressed&&!rightTriggerPressed) {
     rightTriggerPressTime=performance.now();
     debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);

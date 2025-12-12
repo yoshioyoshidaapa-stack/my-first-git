@@ -123,12 +123,15 @@
     let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
     let recognition=null, isRecording=false, pendingMemoPosition=null;
     let vrMemoMode=true; 
-    let vrDebugText=null, vrDebugCanvas=null;
+        let vrDebugText=null, vrDebugCanvas=null;  // ← この行を追加
+let xButtonCooldown=false, xButtonPressTime=0;  // ← この行を追加
     let rightTriggerPressed=false, rightGripPressed=false;
-    let vrZoomLevel=0;
-    let rightTriggerPressTime=0;
-        let editingMemo = null;
-let hoveredMemo = null; // この行を追加
+let vrZoomLevel=0;
+let rightTriggerPressTime=0;
+let editingMemo = null;
+let hoveredMemo = null;
+let btn1WasPressed = false;  // ← この行が追加されています
+let pendingDeleteMemo = null; // ← この行も追加されています
 
     const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/10_1';
 
@@ -859,7 +862,16 @@ let hoveredMemo = null; // この行を追加
     }
 
     // ここから右トリガー処理（既存のコード）
- 
+ // ボタン1（Bボタン）で削除
+const btn1=gamepad.buttons[1];
+const isBtn1Pressed=btn1&&btn1.pressed;
+if(isBtn1Pressed&&!btn1WasPressed) {
+    if(hoveredMemo) {
+        debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
+        showVRDeleteConfirm(hoveredMemo);
+    }
+}
+btn1WasPressed=isBtn1Pressed;
 
                const triggerBtn=gamepad.buttons[0];
 const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
@@ -1059,13 +1071,83 @@ function startEditMemo(memo) {
         scene.add(mesh);
         return mesh;
     }
+function showVRDeleteConfirm(memo) {
+    pendingDeleteMemo = memo;
+    const confirmPanel = new THREE.Group();
+    confirmPanel.name = 'deleteConfirmPanel';
+    
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = 512;
+    bgCanvas.height = 256;
+    const ctx = bgCanvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0,0,0,0.95)';
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(0, 0, 512, 256);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('このメモを削除しますか?', 256, 60);
+    ctx.font = 'bold 24px Arial';
+    ctx.fillStyle = '#ff0000';
+    ctx.fillText('左トリガー: 削除', 256, 130);
+    ctx.fillStyle = '#00ff00';
+    ctx.fillText('右トリガー: キャンセル', 256, 170);
+    
+    const bgTex = new THREE.CanvasTexture(bgCanvas);
+    const bgMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 0.75),
+        new THREE.MeshBasicMaterial({ map: bgTex, transparent: true, side: THREE.DoubleSide })
+    );
+    confirmPanel.add(bgMesh);
+    
+    const cameraWorldPos = new THREE.Vector3();
+    camera.getWorldPosition(cameraWorldPos);
+    const cameraWorldDir = new THREE.Vector3();
+    camera.getWorldDirection(cameraWorldDir);
+    confirmPanel.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
+    confirmPanel.lookAt(cameraWorldPos);
+    confirmPanel.renderOrder = 10000;
+    
+    scene.add(confirmPanel);
+}
 
+function handleDeleteConfirmInput(session) {
+    const panel = scene.getObjectByName('deleteConfirmPanel');
+    if(!panel || !pendingDeleteMemo) return;
+    
+    for(let i = 0; i < session.inputSources.length; i++) {
+        const inputSource = session.inputSources[i];
+        const gamepad = inputSource.gamepad;
+        if(!gamepad) continue;
+        
+        const trigger = gamepad.buttons[0];
+        if(trigger && trigger.pressed) {
+            if(inputSource.handedness === 'left') {
+                deleteMemo(pendingDeleteMemo.id);
+                scene.remove(panel);
+                pendingDeleteMemo = null;
+                hoveredMemo = null;
+                return;
+            } else if(inputSource.handedness === 'right') {
+                scene.remove(panel);
+                pendingDeleteMemo = null;
+                return;
+            }
+        }
+    }
+}
     function animate() {
-        const time=performance.now();
-        const delta=(time-prevTime)/1000;
-        if(renderer.xr.isPresenting) {
-            handleVRControllers(delta);
-        } else {
+    const time=performance.now();
+    const delta=(time-prevTime)/1000;
+    if(renderer.xr.isPresenting) {
+        const session = renderer.xr.getSession();
+        if(session) {
+            handleDeleteConfirmInput(session);  // ← 追加
+        }
+        handleVRControllers(delta);
+    } else {
             velocity.x-=velocity.x*10*delta;
             velocity.z-=velocity.z*10*delta;
             direction.z=Number(moveBackward)-Number(moveForward);

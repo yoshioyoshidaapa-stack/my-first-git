@@ -1123,24 +1123,26 @@ function handleDeleteConfirmInput(session) {
         const gamepad = inputSource.gamepad;
         if(!gamepad) continue;
         
-        // 左コントローラーのAボタン（ボタン0）で削除
-        if(inputSource.handedness === 'left') {
-            const aButton = gamepad.buttons[0];
+        // 右コントローラーのAボタン（ボタン4）で削除
+        if(inputSource.handedness === 'right') {
+            const aButton = gamepad.buttons[4];
             if(aButton && aButton.pressed) {
                 deleteMemo(pendingDeleteMemo.id);
                 scene.remove(panel);
                 pendingDeleteMemo = null;
                 hoveredMemo = null;
+                document.getElementById('status').textContent = 'メモを削除しました';
                 return;
             }
         }
         
-        // 左コントローラーのBボタン（ボタン1）でキャンセル
-        if(inputSource.handedness === 'left') {
-            const bButton = gamepad.buttons[1];
+        // 右コントローラーのBボタン（ボタン5）でキャンセル
+        if(inputSource.handedness === 'right') {
+            const bButton = gamepad.buttons[5];
             if(bButton && bButton.pressed) {
                 scene.remove(panel);
                 pendingDeleteMemo = null;
+                document.getElementById('status').textContent = '削除をキャンセルしました';
                 return;
             }
         }

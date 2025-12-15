@@ -1127,6 +1127,13 @@ function handleDeleteConfirmInput(session) {
         if(inputSource.handedness === 'right') {
             const aButton = gamepad.buttons[4];
             if(aButton && aButton.pressed) {
+                // ホバー枠を削除
+                if(pendingDeleteMemo.hoverFrame) {
+                    scene.remove(pendingDeleteMemo.hoverFrame);
+                    delete pendingDeleteMemo.hoverFrame;
+                }
+                
+                // メモを削除
                 deleteMemo(pendingDeleteMemo.id);
                 scene.remove(panel);
                 pendingDeleteMemo = null;

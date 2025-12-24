@@ -134,7 +134,7 @@ let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/15_1';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_1';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -1072,48 +1072,47 @@ function startEditMemo(memo) {
         scene.add(mesh);
         return mesh;
     }
-function showVRDeleteConfirm(memo) {
-    pendingDeleteMemo = memo;
-    const confirmPanel = new THREE.Group();
-    confirmPanel.name = 'deleteConfirmPanel';
+function handleDeleteConfirmInput(session) {
+    const panel = scene.getObjectByName('deleteConfirmPanel');
+    if(!panel || !pendingDeleteMemo) return;
     
-    const bgCanvas = document.createElement('canvas');
-    bgCanvas.width = 512;
-    bgCanvas.height = 256;
-    const ctx = bgCanvas.getContext('2d');
-    ctx.fillStyle = 'rgba(0,0,0,0.95)';
-    ctx.fillRect(0, 0, 512, 256);
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(0, 0, 512, 256);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 32px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('このメモを削除しますか?', 256, 60);
-    ctx.font = 'bold 24px Arial';
-    ctx.fillStyle = '#ff0000';
-    ctx.fillText('Aボタン: 削除', 256, 130);
-    ctx.fillStyle = '#00ff00';
-    ctx.fillText('Bボタン: キャンセル', 256, 170);
-    
-    const bgTex = new THREE.CanvasTexture(bgCanvas);
-    const bgMesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.5, 0.75),
-        new THREE.MeshBasicMaterial({ map: bgTex, transparent: true, side: THREE.DoubleSide })
-    );
-    confirmPanel.add(bgMesh);
-    
-    const cameraWorldPos = new THREE.Vector3();
-    camera.getWorldPosition(cameraWorldPos);
-    const cameraWorldDir = new THREE.Vector3();
-    camera.getWorldDirection(cameraWorldDir);
-    confirmPanel.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
-    confirmPanel.lookAt(cameraWorldPos);
-    confirmPanel.renderOrder = 10000;
-    
-    scene.add(confirmPanel);
+    for(let i = 0; i < session.inputSources.length; i++) {
+        const inputSource = session.inputSources[i];
+        const gamepad = inputSource.gamepad;
+        if(!gamepad) continue;
+        
+        // 右コントローラーのAボタン（ボタン4）で削除
+        if(inputSource.handedness === 'right') {
+            const aButton = gamepad.buttons[4];
+            if(aButton && aButton.pressed) {
+                // ホバー枠を削除
+                if(pendingDeleteMemo.hoverFrame) {
+                    scene.remove(pendingDeleteMemo.hoverFrame);
+                    delete pendingDeleteMemo.hoverFrame;
+                }
+                
+                // メモを削除
+                deleteMemo(pendingDeleteMemo.id);
+                scene.remove(panel);
+                pendingDeleteMemo = null;
+                hoveredMemo = null;
+                document.getElementById('status').textContent = 'メモを削除しました';
+                return;
+            }
+        }
+        
+        // 右コントローラーのBボタン（ボタン5）でキャンセル
+        if(inputSource.handedness === 'right') {
+            const bButton = gamepad.buttons[5];
+            if(bButton && bButton.pressed) {
+                scene.remove(panel);
+                pendingDeleteMemo = null;
+                document.getElementById('status').textContent = '削除をキャンセルしました';
+                return;
+            }
+        }
+    }
 }
-
 function handleDeleteConfirmInput(session) {
     const panel = scene.getObjectByName('deleteConfirmPanel');
     if(!panel || !pendingDeleteMemo) return;

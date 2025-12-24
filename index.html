@@ -134,7 +134,7 @@ let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_4';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_5';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -493,8 +493,8 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 
     // ---------- ここから最小修正版の本体（重要） ----------
     // createMemo: Sprite -> Plane Mesh（Raycast 安定のため）
-    function createMemo(pos,txt) {
-        const id = memoCounter++;
+  function createMemo(pos, txt, lookAtPos) {
+    const id = memoCounter++;
         // canvas を作る（見た目は同じ）
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -545,13 +545,16 @@ let pendingDeleteMemo = null; // ← この行も追加されています
             depthWrite: false
         });
         const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.copy(pos);
+    mesh.position.copy(pos);
+    
+    // lookAtPosが指定されていればその方向を向く
+    if(lookAtPos) {
+        mesh.lookAt(lookAtPos);
+    }
+    
+    mesh.renderOrder = 9999;
+    mesh.name = `memo_${id}`;
 
-        // カメラの方向を向くように回転
-mesh.lookAt(camera.position);
-        
-        mesh.renderOrder = 9999;
-        mesh.name = `memo_${id}`;
         // store meta
         mesh.userData = mesh.userData || {};
         mesh.userData.text = txt;
@@ -921,27 +924,29 @@ if(isTriggerPressed&&!rightTriggerPressed) {
         updateVRDebugPanel(debugInfo.join('\n'));
     }
 
-    function placeVRMemo() {
-        try {
-            const rightController = controllers[1];
-            if (!rightController) {
-                console.warn('Right controller not available');
-                return;
-            }
-            const controllerWorldPos = new THREE.Vector3();
-            rightController.getWorldPosition(controllerWorldPos);
-            const direction = new THREE.Vector3(0, 0, -1);
-            const controllerWorldQuat = new THREE.Quaternion();
-            rightController.getWorldQuaternion(controllerWorldQuat);
-            direction.applyQuaternion(controllerWorldQuat);
-            const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
-            const timestamp = new Date().toLocaleTimeString('ja-JP');
-            const memoText = `VRメモ ${timestamp}`;
-            createMemo(position, memoText);
-        } catch(error) {
-            console.error('Error in placeVRMemo:', error);
+   function placeVRMemo() {
+    try {
+        const rightController = controllers[1];
+        if (!rightController) {
+            console.warn('Right controller not available');
+            return;
         }
+        const controllerWorldPos = new THREE.Vector3();
+        rightController.getWorldPosition(controllerWorldPos);
+        const direction = new THREE.Vector3(0, 0, -1);
+        const controllerWorldQuat = new THREE.Quaternion();
+        rightController.getWorldQuaternion(controllerWorldQuat);
+        direction.applyQuaternion(controllerWorldQuat);
+        const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
+        const timestamp = new Date().toLocaleTimeString('ja-JP');
+        const memoText = `VRメモ ${timestamp}`;
+        
+        // メモを作成してコントローラーの方を向ける
+        createMemo(position, memoText, controllerWorldPos);
+    } catch(error) {
+        console.error('Error in placeVRMemo:', error);
     }
+}
 
     // Raycast check for memos (works with mesh planes)
     function checkAndEditMemo(controller) {

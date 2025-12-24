@@ -867,7 +867,9 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 const btn1=gamepad.buttons[1];
 const isBtn1Pressed=btn1&&btn1.pressed;
 if(isBtn1Pressed&&!btn1WasPressed) {
-    if(hoveredMemo) {
+    // 削除確認パネルが表示されていない場合のみ実行
+    const confirmPanel = scene.getObjectByName('deleteConfirmPanel');
+    if(hoveredMemo && !confirmPanel) {
         debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
         showVRDeleteConfirm(hoveredMemo);
     }

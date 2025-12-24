@@ -134,7 +134,7 @@ let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_6';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_7';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -203,16 +203,40 @@ let pendingDeleteMemo = null; // ← この行も追加されています
             navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
                 if(sup) {
                     vrButton.onclick=async()=>{
-                        if(!renderer.xr.isPresenting) {
-                            try {
-                                const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-                                await renderer.xr.setSession(s);
-                                isVRMode=true;
-                            } catch(e) {
-                                console.error('XR start failed', e);
-                            }
-                        }
-                    };
+    if(!renderer.xr.isPresenting) {
+        try {
+            const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
+            await renderer.xr.setSession(s);
+            isVRMode=true;
+            
+            // セッション終了時のリセット処理
+            s.addEventListener('end', () => {
+                isVRMode = false;
+                // コントローラーをクリア
+                controllers.forEach(c => {
+                    cameraRig.remove(c);
+                });
+                controllers = [];
+                
+                // コントローラーを再作成
+                const c1=renderer.xr.getController(0);
+                cameraRig.add(c1);
+                controllers.push(c1);
+                const c2=renderer.xr.getController(1);
+                cameraRig.add(c2);
+                controllers.push(c2);
+                
+                const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+                const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+                const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+                c1.add(new THREE.Line(lineGeom,lineMat1));
+                c2.add(new THREE.Line(lineGeom,lineMat2));
+            });
+        } catch(e) {
+            console.error('XR start failed', e);
+        }
+    }
+};
                 } else {
                     vrButton.disabled=true;
                     vrButton.textContent='VR非対応';

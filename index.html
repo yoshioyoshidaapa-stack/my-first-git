@@ -852,23 +852,27 @@ mesh.lookAt(camera.position);
         }
         
         // 新しくホバーしているメモにハイライトを追加
-        if(hits.length > 0) {
-            const hitObj = hits[0].object;
-            const memo = memos.find(m => m.sprite === hitObj);
-            if(memo && memo !== editingMemo) { // 編集中でないメモのみ
-                hoveredMemo = memo;
-                const hoverFrame = new THREE.Mesh(
-                    new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.1, memo.sprite.geometry.parameters.height * 1.1),
-                    new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }) // シアン色
-                );
-                hoverFrame.position.copy(memo.sprite.position);
-                hoverFrame.position.z -= 0.005;
-                hoverFrame.name = 'hoverFrame';
-                scene.add(hoverFrame);
-                memo.hoverFrame = hoverFrame;
-                debugInfo.push(`  >>> HOVERING MEMO #${memo.id} <<<`);
-            }
-        }
+if(hits.length > 0) {
+    const hitObj = hits[0].object;
+    const memo = memos.find(m => m.sprite === hitObj);
+    if(memo && memo !== editingMemo) { // 編集中でないメモのみ
+        hoveredMemo = memo;
+        const hoverFrame = new THREE.Mesh(
+            new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.1, memo.sprite.geometry.parameters.height * 1.1),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }) // シアン色
+        );
+        hoverFrame.position.copy(memo.sprite.position);
+        
+        // メモと同じ向きにする
+        hoverFrame.rotation.copy(memo.sprite.rotation);
+        
+        hoverFrame.position.z -= 0.005;
+        hoverFrame.name = 'hoverFrame';
+        scene.add(hoverFrame);
+        memo.hoverFrame = hoverFrame;
+        debugInfo.push(`  >>> HOVERING MEMO #${memo.id} <<<`);
+    }
+}
     } catch(e) {
         console.error('Hover detection error', e);
     }

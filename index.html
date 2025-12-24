@@ -134,7 +134,7 @@ let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_5';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_6';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -996,14 +996,19 @@ function startEditMemo(memo) {
     
     editingMemo = memo;
     const frame = new THREE.Mesh(
-        new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.15, memo.sprite.geometry.parameters.height * 1.15), // 1.05 -> 1.15 に変更
-        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide }) // opacity 0.25 -> 0.4
+        new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.15, memo.sprite.geometry.parameters.height * 1.15),
+        new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
     );
     frame.position.copy(memo.sprite.position);
+    
+    // メモと同じ向きにする
+    frame.rotation.copy(memo.sprite.rotation);
+    
     frame.position.z -= 0.01;
     frame.name = 'editFrame';
     scene.add(frame);
     memo.editFrame = frame;
+
 
     recognition.onresult = ev => {
         const transcript = ev.results[0][0].transcript;

@@ -199,17 +199,61 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 
     function setupVR() {
     const vrButton=document.getElementById('vrButton');
+    let controllerGrips = []; // グリップを追跡
+    
     if('xr' in navigator) {
         navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
             if(sup) {
                 vrButton.onclick=async()=>{
                     if(!renderer.xr.isPresenting) {
                         try {
+                            // 古いコントローラーとグリップをクリア
+                            controllers.forEach(c => {
+                                c.children.forEach(child => c.remove(child));
+                                cameraRig.remove(c);
+                            });
+                            controllerGrips.forEach(g => {
+                                g.children.forEach(child => g.remove(child));
+                                cameraRig.remove(g);
+                            });
+                            controllers = [];
+                            controllerGrips = [];
+                            
                             const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
                             await renderer.xr.setSession(s);
                             isVRMode=true;
                             
-                            // セッション終了時の処理
+                            // 新しいコントローラーを作成
+                            const c1=renderer.xr.getController(0);
+                            cameraRig.add(c1);
+                            controllers.push(c1);
+                            const c2=renderer.xr.getController(1);
+                            cameraRig.add(c2);
+                            controllers.push(c2);
+
+                            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+                            const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
+                            const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
+                            const g1=renderer.xr.getControllerGrip(0);
+                            const mesh1=new THREE.Mesh(geom,mat1);
+                            mesh1.position.z=-0.075;
+                            g1.add(mesh1);
+                            cameraRig.add(g1);
+                            controllerGrips.push(g1);
+                            
+                            const g2=renderer.xr.getControllerGrip(1);
+                            const mesh2=new THREE.Mesh(geom,mat2);
+                            mesh2.position.z=-0.075;
+                            g2.add(mesh2);
+                            cameraRig.add(g2);
+                            controllerGrips.push(g2);
+
+                            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+                            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+                            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+                            c1.add(new THREE.Line(lineGeom,lineMat1));
+                            c2.add(new THREE.Line(lineGeom,lineMat2));
+                            
                             s.addEventListener('end', () => {
                                 isVRMode = false;
                             });
@@ -232,40 +276,37 @@ let pendingDeleteMemo = null; // ← この行も追加されています
         vrButton.textContent='VR非対応';
     }
 
-    // コントローラーとグリップを初期化する関数
-    function initControllers() {
-        const c1=renderer.xr.getController(0);
-        cameraRig.add(c1);
-        controllers[0] = c1;
-        const c2=renderer.xr.getController(1);
-        cameraRig.add(c2);
-        controllers[1] = c2;
+    // 初回のコントローラー作成
+    const c1=renderer.xr.getController(0);
+    cameraRig.add(c1);
+    controllers.push(c1);
+    const c2=renderer.xr.getController(1);
+    cameraRig.add(c2);
+    controllers.push(c2);
 
-        const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-        const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
-        const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
-        const g1=renderer.xr.getControllerGrip(0);
-        const mesh1=new THREE.Mesh(geom,mat1);
-        mesh1.position.z=-0.075;
-        g1.add(mesh1);
-        cameraRig.add(g1);
-        const g2=renderer.xr.getControllerGrip(1);
-        const mesh2=new THREE.Mesh(geom,mat2);
-        mesh2.position.z=-0.075;
-        g2.add(mesh2);
-        cameraRig.add(g2);
-
-        const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-        const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-        const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-        c1.add(new THREE.Line(lineGeom,lineMat1));
-        c2.add(new THREE.Line(lineGeom,lineMat2));
-    }
+    const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+    const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
+    const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
+    const g1=renderer.xr.getControllerGrip(0);
+    const mesh1=new THREE.Mesh(geom,mat1);
+    mesh1.position.z=-0.075;
+    g1.add(mesh1);
+    cameraRig.add(g1);
+    controllerGrips.push(g1);
     
-    // 初回のコントローラー初期化
-    initControllers();
-}
+    const g2=renderer.xr.getControllerGrip(1);
+    const mesh2=new THREE.Mesh(geom,mat2);
+    mesh2.position.z=-0.075;
+    g2.add(mesh2);
+    cameraRig.add(g2);
+    controllerGrips.push(g2);
 
+    const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+    const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+    const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+    c1.add(new THREE.Line(lineGeom,lineMat1));
+    c2.add(new THREE.Line(lineGeom,lineMat2));
+}
     function createVRDebugPanel() {
         vrDebugCanvas=document.createElement('canvas');
         vrDebugCanvas.width=512;

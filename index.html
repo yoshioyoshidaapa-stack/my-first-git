@@ -202,7 +202,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
         if('xr' in navigator) {
             navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
                 if(sup) {
-                    vrButton.onclick=async()=>{
+                   vrButton.onclick=async()=>{
     if(!renderer.xr.isPresenting) {
         try {
             const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});

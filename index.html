@@ -198,65 +198,48 @@ let pendingDeleteMemo = null; // ← この行も追加されています
     }
 
     function setupVR() {
-        const vrButton=document.getElementById('vrButton');
-        if('xr' in navigator) {
-            navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
-                if(sup) {
-                   vrButton.onclick=async()=>{
-    if(!renderer.xr.isPresenting) {
-        try {
-            const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-            await renderer.xr.setSession(s);
-            isVRMode=true;
-            
-            // セッション終了時のリセット処理
-            s.addEventListener('end', () => {
-                isVRMode = false;
-                // コントローラーをクリア
-                controllers.forEach(c => {
-                    cameraRig.remove(c);
-                });
-                controllers = [];
-                
-                // コントローラーを再作成
-                const c1=renderer.xr.getController(0);
-                cameraRig.add(c1);
-                controllers.push(c1);
-                const c2=renderer.xr.getController(1);
-                cameraRig.add(c2);
-                controllers.push(c2);
-                
-                const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-                const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-                const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-                c1.add(new THREE.Line(lineGeom,lineMat1));
-                c2.add(new THREE.Line(lineGeom,lineMat2));
-            });
-        } catch(e) {
-            console.error('XR start failed', e);
-        }
-    }
-};
-                } else {
-                    vrButton.disabled=true;
-                    vrButton.textContent='VR非対応';
-                }
-            }).catch(err=>{
-                console.warn('isSessionSupported error', err);
+    const vrButton=document.getElementById('vrButton');
+    if('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
+            if(sup) {
+                vrButton.onclick=async()=>{
+                    if(!renderer.xr.isPresenting) {
+                        try {
+                            const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
+                            await renderer.xr.setSession(s);
+                            isVRMode=true;
+                            
+                            // セッション終了時の処理
+                            s.addEventListener('end', () => {
+                                isVRMode = false;
+                            });
+                        } catch(e) {
+                            console.error('XR start failed', e);
+                        }
+                    }
+                };
+            } else {
                 vrButton.disabled=true;
                 vrButton.textContent='VR非対応';
-            });
-        } else {
+            }
+        }).catch(err=>{
+            console.warn('isSessionSupported error', err);
             vrButton.disabled=true;
             vrButton.textContent='VR非対応';
-        }
+        });
+    } else {
+        vrButton.disabled=true;
+        vrButton.textContent='VR非対応';
+    }
 
+    // コントローラーとグリップを初期化する関数
+    function initControllers() {
         const c1=renderer.xr.getController(0);
         cameraRig.add(c1);
-        controllers.push(c1);
+        controllers[0] = c1;
         const c2=renderer.xr.getController(1);
         cameraRig.add(c2);
-        controllers.push(c2);
+        controllers[1] = c2;
 
         const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
         const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
@@ -278,6 +261,10 @@ let pendingDeleteMemo = null; // ← この行も追加されています
         c1.add(new THREE.Line(lineGeom,lineMat1));
         c2.add(new THREE.Line(lineGeom,lineMat2));
     }
+    
+    // 初回のコントローラー初期化
+    initControllers();
+}
 
     function createVRDebugPanel() {
         vrDebugCanvas=document.createElement('canvas');

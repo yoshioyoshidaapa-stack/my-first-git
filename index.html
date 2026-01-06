@@ -133,8 +133,11 @@ let editingMemo = null;
 let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
-
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06';
+// グローバル変数に追加（他のグローバル変数の近く）
+let audioContext = null;
+let audioAnalyser = null;
+let audioDataArray = null;
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06_02';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -1060,34 +1063,111 @@ function startEditMemo(memo) {
 
     // 音声認識中のマークを作成
     const recordingCanvas = document.createElement('canvas');
-    recordingCanvas.width = 256;
+    recordingCanvas.width = 512;
     recordingCanvas.height = 256;
-    const ctx = recordingCanvas.getContext('2d');
-    ctx.fillStyle = 'rgba(255,0,0,0.9)';
-    ctx.beginPath();
-    ctx.arc(128, 128, 100, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 80px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🎤', 128, 128);
     
     const recordingTex = new THREE.CanvasTexture(recordingCanvas);
     const recordingMark = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.5, 0.5),
+        new THREE.PlaneGeometry(1.0, 0.5),
         new THREE.MeshBasicMaterial({ map: recordingTex, transparent: true, side: THREE.DoubleSide })
     );
     recordingMark.position.copy(memo.sprite.position);
     recordingMark.rotation.copy(memo.sprite.rotation);
-    recordingMark.position.y += 0.5; // メモの上に配置
+    recordingMark.position.y += 0.5;
     recordingMark.name = 'recordingMark';
     recordingMark.renderOrder = 10000;
     scene.add(recordingMark);
     memo.recordingMark = recordingMark;
+    
+    // マイクからの音声を取得
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            if(!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            const source = audioContext.createMediaStreamSource(stream);
+            audioAnalyser = audioContext.createAnalyser();
+            audioAnalyser.fftSize = 256;
+            source.connect(audioAnalyser);
+            
+            const bufferLength = audioAnalyser.frequencyBinCount;
+            audioDataArray = new Uint8Array(bufferLength);
+            
+            let animationId;
+            function animateEqualizer() {
+                if(!audioAnalyser || !editingMemo) {
+                    cancelAnimationFrame(animationId);
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                
+                audioAnalyser.getByteFrequencyData(audioDataArray);
+                
+                const ctx = recordingCanvas.getContext('2d');
+                
+                // 背景を再描画
+                ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                ctx.fillRect(0, 0, 512, 256);
+                
+                // マイクアイコンを再描画
+                ctx.fillStyle = 'rgba(255,0,0,0.9)';
+                ctx.beginPath();
+                ctx.arc(100, 128, 60, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 60px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🎤', 100, 128);
+                
+                // イコライザーバー（8本）
+                const barCount = 8;
+                const barWidth = 30;
+                const barGap = 10;
+                const startX = 220;
+                
+                for(let i = 0; i < barCount; i++) {
+                    // 周波数データから対応する範囲の平均を取得
+                    const dataIndex = Math.floor((i / barCount) * bufferLength);
+                    const value = audioDataArray[dataIndex] || 0;
+                    const height = (value / 255) * 180 + 20; // 20-200の範囲
+                    
+                    const x = startX + i * (barWidth + barGap);
+                    const y = 128 - height / 2;
+                    
+                    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+                    gradient.addColorStop(0, '#00ff00');
+                    gradient.addColorStop(0.5, '#ffff00');
+                    gradient.addColorStop(1, '#ff0000');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(x, y, barWidth, height);
+                }
+                
+                recordingTex.needsUpdate = true;
+                animationId = requestAnimationFrame(animateEqualizer);
+            }
+            animateEqualizer();
+            
+            // ストリームを保存してクリーンアップできるように
+            memo.audioStream = stream;
+            memo.animationId = animationId;
+        })
+        .catch(err => {
+            console.error('Microphone access error:', err);
+        });
 
     recognition.onresult = ev => {
         const transcript = ev.results[0][0].transcript;
+        
+        // オーディオストリームとアニメーションを停止
+        if(editingMemo.audioStream) {
+            editingMemo.audioStream.getTracks().forEach(track => track.stop());
+        }
+        if(editingMemo.animationId) {
+            cancelAnimationFrame(editingMemo.animationId);
+        }
         
         // 録音マークを削除
         if(editingMemo.recordingMark) {
@@ -1111,6 +1191,14 @@ function startEditMemo(memo) {
     recognition.onerror = (e) => {
         console.error('Voice recognition error during edit', e);
         
+        // オーディオストリームとアニメーションを停止
+        if(editingMemo && editingMemo.audioStream) {
+            editingMemo.audioStream.getTracks().forEach(track => track.stop());
+        }
+        if(editingMemo && editingMemo.animationId) {
+            cancelAnimationFrame(editingMemo.animationId);
+        }
+        
         // 録音マークを削除
         if(editingMemo && editingMemo.recordingMark) {
             scene.remove(editingMemo.recordingMark);
@@ -1129,6 +1217,11 @@ function startEditMemo(memo) {
         recognition.start();
     } catch (e) {
         console.error('recognition.start error', e);
+        
+        // オーディオストリームを停止
+        if(memo.audioStream) {
+            memo.audioStream.getTracks().forEach(track => track.stop());
+        }
         
         // 録音マークを削除
         if(memo.recordingMark) {

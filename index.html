@@ -1127,23 +1127,34 @@ function startEditMemo(memo) {
                 const barGap = 10;
                 const startX = 220;
                 
-                for(let i = 0; i < barCount; i++) {
-                    // 周波数データから対応する範囲の平均を取得
-                    const dataIndex = Math.floor((i / barCount) * bufferLength);
-                    const value = audioDataArray[dataIndex] || 0;
-                    const height = (value / 255) * 180 + 20; // 20-200の範囲
-                    
-                    const x = startX + i * (barWidth + barGap);
-                    const y = 128 - height / 2;
-                    
-                    const gradient = ctx.createLinearGradient(x, y, x, y + height);
-                    gradient.addColorStop(0, '#00ff00');
-                    gradient.addColorStop(0.5, '#ffff00');
-                    gradient.addColorStop(1, '#ff0000');
-                    
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(x, y, barWidth, height);
-                }
+                // 音量データを取得（時間領域データ）
+audioAnalyser.getByteTimeDomainData(audioDataArray);
+
+// 全体の音量を計算
+let sum = 0;
+for(let i = 0; i < bufferLength; i++) {
+    const value = audioDataArray[i] - 128; // 128を中心とした値に変換
+    sum += value * value;
+}
+const rms = Math.sqrt(sum / bufferLength);
+const normalizedVolume = rms / 128; // 0-1の範囲に正規化
+
+for(let i = 0; i < barCount; i++) {
+    // 各バーに少しランダムな変動を加える
+    const randomFactor = 0.7 + Math.random() * 0.3;
+    const height = normalizedVolume * 180 * randomFactor + 20; // 20-200の範囲
+    
+    const x = startX + i * (barWidth + barGap);
+    const y = 128 - height / 2;
+    
+    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+    gradient.addColorStop(0, '#00ff00');
+    gradient.addColorStop(0.5, '#ffff00');
+    gradient.addColorStop(1, '#ff0000');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, barWidth, height);
+}
                 
                 recordingTex.needsUpdate = true;
                 animationId = requestAnimationFrame(animateEqualizer);

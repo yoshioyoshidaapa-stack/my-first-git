@@ -134,7 +134,7 @@ let hoveredMemo = null;
 let btn1WasPressed = false;  // ← この行が追加されています
 let pendingDeleteMemo = null; // ← この行も追加されています
 
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2025/12/24_7';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -1052,18 +1052,49 @@ function startEditMemo(memo) {
         new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide })
     );
     frame.position.copy(memo.sprite.position);
-    
-    // メモと同じ向きにする
     frame.rotation.copy(memo.sprite.rotation);
-    
     frame.position.z -= 0.01;
     frame.name = 'editFrame';
     scene.add(frame);
     memo.editFrame = frame;
 
+    // 音声認識中のマークを作成
+    const recordingCanvas = document.createElement('canvas');
+    recordingCanvas.width = 256;
+    recordingCanvas.height = 256;
+    const ctx = recordingCanvas.getContext('2d');
+    ctx.fillStyle = 'rgba(255,0,0,0.9)';
+    ctx.beginPath();
+    ctx.arc(128, 128, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 80px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎤', 128, 128);
+    
+    const recordingTex = new THREE.CanvasTexture(recordingCanvas);
+    const recordingMark = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.5, 0.5),
+        new THREE.MeshBasicMaterial({ map: recordingTex, transparent: true, side: THREE.DoubleSide })
+    );
+    recordingMark.position.copy(memo.sprite.position);
+    recordingMark.rotation.copy(memo.sprite.rotation);
+    recordingMark.position.y += 0.5; // メモの上に配置
+    recordingMark.name = 'recordingMark';
+    recordingMark.renderOrder = 10000;
+    scene.add(recordingMark);
+    memo.recordingMark = recordingMark;
 
     recognition.onresult = ev => {
         const transcript = ev.results[0][0].transcript;
+        
+        // 録音マークを削除
+        if(editingMemo.recordingMark) {
+            scene.remove(editingMemo.recordingMark);
+            delete editingMemo.recordingMark;
+        }
+        
         if(editingMemo.editFrame) {
             scene.remove(editingMemo.editFrame);
             delete editingMemo.editFrame;
@@ -1079,6 +1110,13 @@ function startEditMemo(memo) {
 
     recognition.onerror = (e) => {
         console.error('Voice recognition error during edit', e);
+        
+        // 録音マークを削除
+        if(editingMemo && editingMemo.recordingMark) {
+            scene.remove(editingMemo.recordingMark);
+            delete editingMemo.recordingMark;
+        }
+        
         if(editingMemo && editingMemo.editFrame) {
             scene.remove(editingMemo.editFrame);
             delete editingMemo.editFrame;
@@ -1091,6 +1129,12 @@ function startEditMemo(memo) {
         recognition.start();
     } catch (e) {
         console.error('recognition.start error', e);
+        
+        // 録音マークを削除
+        if(memo.recordingMark) {
+            scene.remove(memo.recordingMark);
+            delete memo.recordingMark;
+        }
     }
 }
     function createMemoSprite(pos, txt) {

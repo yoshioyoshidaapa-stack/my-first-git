@@ -137,7 +137,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06_02';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06_03';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -932,56 +932,56 @@ if(hits.length > 0) {
         console.error('Hover detection error', e);
     }
 
-    // ここから右トリガー処理（既存のコード）
- // ボタン1（Bボタン）で削除
-const btn1=gamepad.buttons[1];
-const isBtn1Pressed=btn1&&btn1.pressed;
-if(isBtn1Pressed&&!btn1WasPressed) {
-    // 削除確認パネルが表示されていない場合のみ実行
-    const confirmPanel = scene.getObjectByName('deleteConfirmPanel');
-    if(hoveredMemo && !confirmPanel) {
-        debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
-        showVRDeleteConfirm(hoveredMemo);
-    }
-}
-btn1WasPressed=isBtn1Pressed;
-
-               const triggerBtn=gamepad.buttons[0];
+    // 右トリガー処理（新しい操作方式）
+const triggerBtn=gamepad.buttons[0];
 const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
 if(isTriggerPressed&&!rightTriggerPressed) {
-    rightTriggerPressTime=performance.now();
-    debugInfo.push(`  Trigger DOWN! vrMemoMode=${vrMemoMode}`);
+    // トリガーを押した瞬間
     rightTriggerPressed=true;
-} else if(isTriggerPressed&&rightTriggerPressed) {
-    const pressDuration=performance.now()-rightTriggerPressTime;
-    debugInfo.push(`  Trigger HELD ${(pressDuration/1000).toFixed(1)}s`);
-    if(pressDuration>500 && rightTriggerPressTime > 0) {
-        debugInfo.push(`  >>> CHECKING FOR MEMO TO EDIT <<<`);
-        checkAndEditMemo(controllers[1]);
-        rightTriggerPressTime = -1;
+    debugInfo.push(`  Trigger DOWN!`);
+    
+    if(hoveredMemo) {
+        // ホバー中のメモがある場合は編集開始
+        debugInfo.push(`  >>> EDITING MEMO #${hoveredMemo.id} <<<`);
+        startEditMemo(hoveredMemo);
+    } else {
+        // メモを作成して音声入力開始
+        debugInfo.push(`  >>> CREATING NEW MEMO <<<`);
+        const rightController = controllers[1];
+        if(rightController) {
+            const controllerWorldPos = new THREE.Vector3();
+            rightController.getWorldPosition(controllerWorldPos);
+            const direction = new THREE.Vector3(0, 0, -1);
+            const controllerWorldQuat = new THREE.Quaternion();
+            rightController.getWorldQuaternion(controllerWorldQuat);
+            direction.applyQuaternion(controllerWorldQuat);
+            const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
+            
+            // 仮メモを作成
+            const tempMemoText = "録音中...";
+            createMemo(position, tempMemoText, controllerWorldPos);
+            
+            // 作成したばかりのメモを編集対象に
+            const newMemo = memos[memos.length - 1];
+            startEditMemo(newMemo);
+        }
     }
 } else if(!isTriggerPressed&&rightTriggerPressed) {
-    const pressDuration = rightTriggerPressTime > 0 ? performance.now()-rightTriggerPressTime : 1000;
-    debugInfo.push(`  Trigger UP after ${(pressDuration/1000).toFixed(1)}s`);
-    
-    if(pressDuration<500) {
-    // 短押しでメモ配置
-    debugInfo.push(`  >>> PLACING MEMO <<<`);
-    placeVRMemo();
-}
+    // トリガーを離した瞬間
     rightTriggerPressed=false;
-    rightTriggerPressTime=0;
-}
-
-                
-            }
-            debugInfo.push('');
+    debugInfo.push(`  Trigger UP!`);
+    
+    // 音声認識を停止
+    if(recognition && editingMemo) {
+        try {
+            recognition.stop();
+            debugInfo.push(`  >>> STOPPING VOICE INPUT <<<`);
+        } catch(e) {
+            console.error('Recognition stop error:', e);
         }
-
-        debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
-        updateVRDebugPanel(debugInfo.join('\n'));
     }
+}
 
    function placeVRMemo() {
     try {
@@ -1223,6 +1223,35 @@ for(let i = 0; i < barCount; i++) {
         editingMemo = null;
         document.getElementById('status').textContent = '音声認識エラー';
     };
+
+    recognition.onend = () => {
+    // 音声認識が終了したときの処理
+    console.log('Recognition ended');
+    
+    // オーディオストリームとアニメーションを停止
+    if(editingMemo && editingMemo.audioStream) {
+        editingMemo.audioStream.getTracks().forEach(track => track.stop());
+    }
+    if(editingMemo && editingMemo.animationId) {
+        cancelAnimationFrame(editingMemo.animationId);
+    }
+    
+    // 録音マークを削除
+    if(editingMemo && editingMemo.recordingMark) {
+        scene.remove(editingMemo.recordingMark);
+        delete editingMemo.recordingMark;
+    }
+    
+    if(editingMemo && editingMemo.editFrame) {
+        scene.remove(editingMemo.editFrame);
+        delete editingMemo.editFrame;
+    }
+    
+    // 認識結果がない場合（何も話さなかった場合）
+    if(editingMemo) {
+        editingMemo = null;
+    }
+};
 
     try {
         recognition.start();

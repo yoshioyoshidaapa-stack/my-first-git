@@ -137,7 +137,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_01';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_02';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -1065,7 +1065,16 @@ if(isTriggerPressed&&!rightTriggerPressed) {
 
     
 
-function startEditMemo(memo) {// デバッグ表示
+function startEditMemo(memo) {
+    updateVRDebugPanel('=== START EDIT MEMO ===\nMemo ID: ' + memo.id + '\nRecognition: ' + (recognition ? 'OK' : 'NULL') + '\nisRecording: ' + isRecording);
+    
+    if(!recognition) {
+        document.getElementById('status').textContent = '音声認識が利用できません';
+        updateVRDebugPanel('ERROR: No recognition object');
+        return;
+    }
+    
+    
 document.getElementById('status').textContent = 'startEditMemo called! isRecording:' + isRecording;
 setTimeout(() => {
     document.getElementById('status').textContent = 'Recognition object: ' + (recognition ? 'OK' : 'NULL');
@@ -1299,11 +1308,13 @@ isRecording = false;
     };
     // ↑↑↑ ここまで追加 ↑↑↑
 
-    try {isRecording = true;
-document.getElementById('status').textContent = '音声認識開始...';
-console.log('Recognition started for memo', memo.id);
+      try {
+        isRecording = true;
         recognition.start();
+        updateVRDebugPanel('=== RECOGNITION STARTED ===\nMemo ID: ' + memo.id + '\nisRecording: true');
+        console.log('Recognition started for memo', memo.id);
     } catch (e) {
+        updateVRDebugPanel('ERROR: ' + e.message);
         console.error('recognition.start error', e);
         
         // オーディオストリームを停止

@@ -728,6 +728,8 @@ mesh.lookAt(camera.position);
         document.getElementById('voiceButton').classList.add('recording');
         document.getElementById('voiceButton').textContent='🎤 録音中...';
         recognition.onresult=ev=>{
+            // 録音状態をリセット
+isRecording = false;
             const transcript=ev.results[0][0].transcript;
             createMemo(currentMemoPosition,transcript);
             isRecording=false;
@@ -740,7 +742,9 @@ mesh.lookAt(camera.position);
             document.getElementById('voiceButton').classList.remove('recording');
             document.getElementById('voiceButton').textContent='🎤 音声入力';
         };
-        try {
+        try {isRecording = true;
+document.getElementById('status').textContent = '音声認識開始...';
+console.log('Recognition started for memo', memo.id);
             recognition.start();
         } catch (e) {
             console.warn('recognition start error', e);
@@ -1060,6 +1064,14 @@ if(isTriggerPressed&&!rightTriggerPressed) {
     
 
 function startEditMemo(memo) {
+if(isRecording) {
+    try {
+        recognition.stop();
+    } catch(e) {
+        console.warn('Failed to stop previous recognition', e);
+    }
+    isRecording = false;
+}
     if(!recognition) {
         document.getElementById('status').textContent = '音声認識が利用できません';
         return;
@@ -1192,6 +1204,8 @@ for(let i = 0; i < barCount; i++) {
         });
 
     recognition.onresult = ev => {
+        // 録音状態をリセット
+isRecording = false;
         const transcript = ev.results[0][0].transcript;
         
         // オーディオストリームとアニメーションを停止
@@ -1248,7 +1262,14 @@ for(let i = 0; i < barCount; i++) {
 
     // ↓↓↓ ここに以下を追加 ↓↓↓
     recognition.onend = () => {
-        // 音声認識が終了したときの処理
+    console.log('Recognition ended, isRecording:', isRecording);
+    
+    // onresultが既に処理済みの場合は何もしない
+    if(!editingMemo) return;
+    
+    // タイムアウトや中断の場合のクリーンアップ
+    isRecording = false;
+    
         console.log('Recognition ended');
         
         // オーディオストリームとアニメーションを停止
@@ -1272,7 +1293,9 @@ for(let i = 0; i < barCount; i++) {
     };
     // ↑↑↑ ここまで追加 ↑↑↑
 
-    try {
+    try {isRecording = true;
+document.getElementById('status').textContent = '音声認識開始...';
+console.log('Recognition started for memo', memo.id);
         recognition.start();
     } catch (e) {
         console.error('recognition.start error', e);

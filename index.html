@@ -137,7 +137,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_02';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_03';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -978,7 +978,7 @@ if(isTriggerPressed&&!rightTriggerPressed) {
             const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
             
             // 仮メモを作成
-            const tempMemoText = "録音中...";
+            const tempMemoText = "...";
             createMemo(position, tempMemoText, controllerWorldPos);
             
             // 作成したばかりのメモを編集対象に
@@ -992,10 +992,11 @@ if(isTriggerPressed&&!rightTriggerPressed) {
     debugInfo.push(`  Trigger UP!`);
     
     // 音声認識を停止
-    if(recognition && editingMemo) {
+    if(recognition && isRecording && editingMemo) {
         try {
             recognition.stop();
             debugInfo.push(`  >>> STOPPING VOICE INPUT <<<`);
+            updateVRDebugPanel('Trigger UP - Stopping recognition');
         } catch(e) {
             console.error('Recognition stop error:', e);
         }

@@ -1065,7 +1065,11 @@ if(isTriggerPressed&&!rightTriggerPressed) {
 
     
 
-function startEditMemo(memo) {
+function startEditMemo(memo) {// デバッグ表示
+document.getElementById('status').textContent = 'startEditMemo called! isRecording:' + isRecording;
+setTimeout(() => {
+    document.getElementById('status').textContent = 'Recognition object: ' + (recognition ? 'OK' : 'NULL');
+}, 1000);
 if(isRecording) {
     try {
         recognition.stop();

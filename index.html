@@ -137,7 +137,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06_04';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_01';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -706,18 +706,20 @@ mesh.lookAt(camera.position);
     }
     // ---------- ここまで最小修正版の本体 ----------
 
-    function initSpeechRecognition() {
-        if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {
-            const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-            recognition=new SR();
-            recognition.lang='ja-JP';
-            recognition.continuous=false;
-            recognition.interimResults=false;
-        } else {
-            document.getElementById('voiceButton').disabled=true;
-            document.getElementById('voiceButton').textContent='🎤 非対応';
-        }
+   function initSpeechRecognition() {
+    if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {
+        const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        recognition=new SR();
+        recognition.lang='ja-JP';
+        recognition.continuous=false;
+        recognition.interimResults=false;
+        console.log('Speech recognition initialized:', recognition); // ←追加
+    } else {
+        console.error('Speech recognition not supported'); // ←追加
+        document.getElementById('voiceButton').disabled=true;
+        document.getElementById('voiceButton').textContent='🎤 非対応';
     }
+}
 
     let currentMemoPosition=null;
 

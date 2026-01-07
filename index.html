@@ -137,7 +137,7 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_03';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/07_04';
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -729,32 +729,46 @@ mesh.lookAt(camera.position);
         isRecording=true;
         document.getElementById('voiceButton').classList.add('recording');
         document.getElementById('voiceButton').textContent='🎤 録音中...';
-        recognition.onresult=ev=>{
-            // 録音状態をリセット
-isRecording = false;
-            const transcript=ev.results[0][0].transcript;
-            createMemo(currentMemoPosition,transcript);
-            isRecording=false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        };
-        recognition.onerror=(err)=>{
-            console.error('recognition error', err);
-            isRecording=false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        };
-        try {isRecording = true;
-document.getElementById('status').textContent = '音声認識開始...';
-console.log('Recognition started for memo', memo.id);
-            recognition.start();
-        } catch (e) {
-            console.warn('recognition start error', e);
-            isRecording = false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        }
+        recognition.onresult = ev => {
+    console.log('===== ONRESULT CALLED =====');
+    updateVRDebugPanel('ONRESULT!\nTranscript received');
+    
+    const transcript = ev.results[0][0].transcript;
+    console.log('Transcript:', transcript);
+    
+    // 録音状態をリセット
+    isRecording = false;
+    
+    // オーディオストリームとアニメーションを停止
+    if(editingMemo.audioStream) {
+        editingMemo.audioStream.getTracks().forEach(track => track.stop());
+        delete editingMemo.audioStream;
     }
+    if(editingMemo.animationId) {
+        cancelAnimationFrame(editingMemo.animationId);
+        delete editingMemo.animationId;
+    }
+    
+    // 録音マークを削除
+    if(editingMemo.recordingMark) {
+        scene.remove(editingMemo.recordingMark);
+        delete editingMemo.recordingMark;
+    }
+    
+    if(editingMemo.editFrame) {
+        scene.remove(editingMemo.editFrame);
+        delete editingMemo.editFrame;
+    }
+    if (editingMemo.sprite) scene.remove(editingMemo.sprite);
+    
+    const newMesh = createMemoSprite(editingMemo.position, transcript);
+    editingMemo.sprite = newMesh;
+    editingMemo.text = transcript;
+    updateMemoList();
+    
+    updateVRDebugPanel('Memo updated: ' + transcript);
+    editingMemo = null;
+};
 
     function toggleVoiceInput() {
         if(!recognition)return;
@@ -1278,13 +1292,15 @@ isRecording = false;
 
     // ↓↓↓ ここに以下を追加 ↓↓↓
     recognition.onend = () => {
-    console.log('Recognition ended, isRecording:', isRecording);
+    console.log('===== ONEND CALLED =====', 'editingMemo:', editingMemo);
+    updateVRDebugPanel('ONEND called\neditingMemo: ' + (editingMemo ? editingMemo.id : 'null'));
     
     // onresultが既に処理済みの場合は何もしない
     if(!editingMemo) return;
     
-    // タイムアウトや中断の場合のクリーンアップ
+    // 音声が認識されなかった場合のクリーンアップ
     isRecording = false;
+    
     
         console.log('Recognition ended');
         

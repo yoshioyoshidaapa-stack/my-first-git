@@ -57,7 +57,7 @@
             <strong>PC:</strong> W/A/S/D移動, マウス視点, Q/Eズーム, Mメモモード<br>
             <strong>VR:</strong> 左スティック移動, 右スティック視点, A/B上下, 右トリガーズーム/メモ, Xボタン長押しメモモード切替
         </div>
-        <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl" />
+          <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl,.fbx" />
         <button id="vrButton">VRモード開始</button>
         <button id="resetButton" class="btn">カメラリセット</button>
         <button id="clearButton" class="btn">モデル削除</button>
@@ -107,6 +107,8 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
 
     <script>
     /*************************************************************************
@@ -137,7 +139,23 @@ let pendingDeleteMemo = null; // ← この行も追加されています
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/06_04';
+    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/14';
+        
+function loadFBX(buf) {
+    try {
+        const loader = new THREE.FBXLoader();
+        loader.parse(buf, '', fbx => {
+            addModelToScene(fbx, 'FBX');
+        }, err => {
+            console.error('FBX load error', err);
+            document.getElementById('loading').style.display='none';
+        });
+    } catch (err) {
+        console.error('FBX load error', err);
+        document.getElementById('loading').style.display='none';
+    }
+}
+        
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -352,6 +370,7 @@ let audioDataArray = null;
             if(ext==='glb'||ext==='gltf')loadGLTF(buf);
             else if(ext==='obj')loadOBJ(buf);
             else if(ext==='stl')loadSTL(buf);
+                else if(ext==='fbx')loadFBX(buf);
             else document.getElementById('loading').style.display='none';
         };
         r.readAsArrayBuffer(f);

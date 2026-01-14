@@ -35,7 +35,7 @@
 
     <div id="info">
         <strong>VR ショップウォークスルー</strong><br>
-        <small style="color:#aaa">音声認識修正版 2026/01/07</small>
+        <small style="color:#aaa">音声認識修正版 2026/01/14</small>
         <div id="controls">
             <strong>VR:</strong> 左スティック移動, 右スティック視点<br>
             <strong>トリガー:</strong> 押す=録音開始, 離す=録音停止<br>
@@ -358,65 +358,84 @@
                 
                 memo.audioStream = stream;
                 memo.animationId = animationId;
-                
+              
                 // ★★★ イベントハンドラをここで定義 ★★★
-                recognition.onresult = ev => {
-                    console.log('===== ONRESULT =====');
-                    const transcript = ev.results[0][0].transcript;
-                    console.log('Transcript:', transcript);
-                    isRecording = false;
-                    
-                    if(editingMemo.audioStream) {
-                        editingMemo.audioStream.getTracks().forEach(track => track.stop());
-                        delete editingMemo.audioStream;
-                    }
-                    if(editingMemo.animationId) {
-                        cancelAnimationFrame(editingMemo.animationId);
-                        delete editingMemo.animationId;
-                    }
-                    if(editingMemo.recordingMark) {
-                        scene.remove(editingMemo.recordingMark);
-                        delete editingMemo.recordingMark;
-                    }
-                    if(editingMemo.editFrame) {
-                        scene.remove(editingMemo.editFrame);
-                        delete editingMemo.editFrame;
-                    }
-                    if (editingMemo.sprite) scene.remove(editingMemo.sprite);
-                    
-                    createMemo(editingMemo.position, transcript, camera.position);
-                    updateVRDebugPanel('Updated: ' + transcript);
-                    editingMemo = null;
-                };
+                // ★★★ ここに追加 ★★★
+recognition.onresult = ev => {
+    console.log('===== ONRESULT =====');
+    const transcript = ev.results[0][0].transcript;
+    isRecording = false;
+    
+    if(editingMemo.audioStream) {
+        editingMemo.audioStream.getTracks().forEach(track => track.stop());
+        delete editingMemo.audioStream;
+    }
+    if(editingMemo.animationId) {
+        cancelAnimationFrame(editingMemo.animationId);
+        delete editingMemo.animationId;
+    }
+    if(editingMemo.recordingMark) {
+        scene.remove(editingMemo.recordingMark);
+        delete editingMemo.recordingMark;
+    }
+    if(editingMemo.editFrame) {
+        scene.remove(editingMemo.editFrame);
+        delete editingMemo.editFrame;
+    }
+    if (editingMemo.sprite) scene.remove(editingMemo.sprite);
+    
+    const newMesh = createMemoSprite(editingMemo.position, transcript);
+    editingMemo.sprite = newMesh;
+    editingMemo.text = transcript;
+    updateMemoList();
+    updateVRDebugPanel('Memo updated: ' + transcript);
+    editingMemo = null;
+};
+
+recognition.onerror = (e) => {
+    console.error('Recognition error', e);
+    isRecording = false;
+    if(editingMemo && editingMemo.audioStream) {
+        editingMemo.audioStream.getTracks().forEach(track => track.stop());
+        delete editingMemo.audioStream;
+    }
+    if(editingMemo && editingMemo.animationId) {
+        cancelAnimationFrame(editingMemo.animationId);
+        delete editingMemo.animationId;
+    }
+    if(editingMemo && editingMemo.recordingMark) {
+        scene.remove(editingMemo.recordingMark);
+        delete editingMemo.recordingMark;
+    }
+    if(editingMemo && editingMemo.editFrame) {
+        scene.remove(editingMemo.editFrame);
+        delete editingMemo.editFrame;
+    }
+    editingMemo = null;
+    updateVRDebugPanel('Error: ' + e.error);
+};
+
+recognition.onend = () => {
+    console.log('===== ONEND =====');
+    if(!editingMemo) return;
+    isRecording = false;
+};
+
+// 音声認識開始
+try {
+    isRecording = true;
+    recognition.start();
+    updateVRDebugPanel('Recording started');
+    console.log('Recognition started');
+} catch (e) {
+    console.error('Start error', e);
+    updateVRDebugPanel('Start error: ' + e.message);
+}
+          
                 
-                recognition.onerror = (e) => {
-                    console.error('Recognition error', e);
-                    isRecording = false;
-                    if(editingMemo && editingMemo.audioStream) {
-                        editingMemo.audioStream.getTracks().forEach(track => track.stop());
-                        delete editingMemo.audioStream;
-                    }
-                    if(editingMemo && editingMemo.animationId) {
-                        cancelAnimationFrame(editingMemo.animationId);
-                        delete editingMemo.animationId;
-                    }
-                    if(editingMemo && editingMemo.recordingMark) {
-                        scene.remove(editingMemo.recordingMark);
-                        delete editingMemo.recordingMark;
-                    }
-                    if(editingMemo && editingMemo.editFrame) {
-                        scene.remove(editingMemo.editFrame);
-                        delete editingMemo.editFrame;
-                    }
-                    editingMemo = null;
-                    updateVRDebugPanel('Error: ' + e.error);
-                };
+             
                 
-                recognition.onend = () => {
-                    console.log('===== ONEND =====');
-                    if(!editingMemo) return;
-                    isRecording = false;
-                };
+               
                 
                 // 音声認識開始
                 try {

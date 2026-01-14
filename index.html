@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -57,7 +56,7 @@
             <strong>PC:</strong> W/A/S/D移動, マウス視点, Q/Eズーム, Mメモモード<br>
             <strong>VR:</strong> 左スティック移動, 右スティック視点, A/B上下, 右トリガーズーム/メモ, Xボタン長押しメモモード切替
         </div>
-          <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl,.fbx" />
+        <input type="file" id="fileInput" accept=".glb,.gltf,.obj,.stl,.fbx" />
         <button id="vrButton">VRモード開始</button>
         <button id="resetButton" class="btn">カメラリセット</button>
         <button id="clearButton" class="btn">モデル削除</button>
@@ -104,19 +103,13 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
 
     <script>
-    /*************************************************************************
-     A版（最小修正版）
-     - 元の構造・UIはそのままに、メモの「選択（Raycast）」が確実に動作するよう
-       createMemo / createMemoSprite を最小変更（Sprite -> Plane Mesh）しています。
-     *************************************************************************/
-
     let scene, camera, renderer, cameraRig;
     let moveForward=false, moveBackward=false, moveLeft=false, moveRight=false;
     let velocity=new THREE.Vector3(), direction=new THREE.Vector3();
@@ -125,37 +118,38 @@
     const MIN_FOV=30, MAX_FOV=100, PLAYER_HEIGHT=1.6, MOVE_SPEED=80, VR_MOVE_SPEED=10, VR_ROTATION_SPEED=1.5;
     let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
     let recognition=null, isRecording=false, pendingMemoPosition=null;
-    let vrMemoMode=true; 
-        let vrDebugText=null, vrDebugCanvas=null;  // ← この行を追加
-let xButtonCooldown=false, xButtonPressTime=0;  // ← この行を追加
+    let vrMemoMode=true;
+    let vrDebugText=null, vrDebugCanvas=null;
+    let xButtonCooldown=false, xButtonPressTime=0;
     let rightTriggerPressed=false, rightGripPressed=false;
-let vrZoomLevel=0;
-let rightTriggerPressTime=0;
-let editingMemo = null;
-let hoveredMemo = null;
-let btn1WasPressed = false;  // ← この行が追加されています
-let pendingDeleteMemo = null; // ← この行も追加されています
-// グローバル変数に追加（他のグローバル変数の近く）
-let audioContext = null;
-let audioAnalyser = null;
-let audioDataArray = null;
-    const VERSION='A版 v1.0.0', UPDATE_DATE='2026/01/14';
-        
-function loadFBX(buf) {
-    try {
-        const loader = new THREE.FBXLoader();
-        loader.parse(buf, '', fbx => {
-            addModelToScene(fbx, 'FBX');
-        }, err => {
+    let vrZoomLevel=0;
+    let rightTriggerPressTime=0;
+    let editingMemo = null;
+    let hoveredMemo = null;
+    let btn1WasPressed = false;
+    let pendingDeleteMemo = null;
+    let audioContext = null;
+    let audioAnalyser = null;
+    let audioDataArray = null;
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_4';
+
+    function loadFBX(buf) {
+        try {
+            const loader = new THREE.FBXLoader();
+            loader.parse(buf, '', fbx => {
+                console.log('FBX loaded successfully', fbx);
+                addModelToScene(fbx, 'FBX');
+            }, err => {
+                console.error('FBX parse error', err);
+                document.getElementById('loading').style.display='none';
+                document.getElementById('status').textContent='FBX読み込みエラー';
+            });
+        } catch (err) {
             console.error('FBX load error', err);
             document.getElementById('loading').style.display='none';
-        });
-    } catch (err) {
-        console.error('FBX load error', err);
-        document.getElementById('loading').style.display='none';
+            document.getElementById('status').textContent='FBX読み込みエラー: ' + err.message;
+        }
     }
-}
-        
 
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
@@ -219,115 +213,113 @@ function loadFBX(buf) {
     }
 
     function setupVR() {
-    const vrButton=document.getElementById('vrButton');
-    let controllerGrips = []; // グリップを追跡
-    
-    if('xr' in navigator) {
-        navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
-            if(sup) {
-                vrButton.onclick=async()=>{
-                    if(!renderer.xr.isPresenting) {
-                        try {
-                            // 古いコントローラーとグリップをクリア
-                            controllers.forEach(c => {
-                                c.children.forEach(child => c.remove(child));
-                                cameraRig.remove(c);
-                            });
-                            controllerGrips.forEach(g => {
-                                g.children.forEach(child => g.remove(child));
-                                cameraRig.remove(g);
-                            });
-                            controllers = [];
-                            controllerGrips = [];
-                            
-                            const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-                            await renderer.xr.setSession(s);
-                            isVRMode=true;
-                            
-                            // 新しいコントローラーを作成
-                            const c1=renderer.xr.getController(0);
-                            cameraRig.add(c1);
-                            controllers.push(c1);
-                            const c2=renderer.xr.getController(1);
-                            cameraRig.add(c2);
-                            controllers.push(c2);
+        const vrButton=document.getElementById('vrButton');
+        let controllerGrips = [];
+        
+        if('xr' in navigator) {
+            navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
+                if(sup) {
+                    vrButton.onclick=async()=>{
+                        if(!renderer.xr.isPresenting) {
+                            try {
+                                controllers.forEach(c => {
+                                    c.children.forEach(child => c.remove(child));
+                                    cameraRig.remove(c);
+                                });
+                                controllerGrips.forEach(g => {
+                                    g.children.forEach(child => g.remove(child));
+                                    cameraRig.remove(g);
+                                });
+                                controllers = [];
+                                controllerGrips = [];
+                                
+                                const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
+                                await renderer.xr.setSession(s);
+                                isVRMode=true;
+                                
+                                const c1=renderer.xr.getController(0);
+                                cameraRig.add(c1);
+                                controllers.push(c1);
+                                const c2=renderer.xr.getController(1);
+                                cameraRig.add(c2);
+                                controllers.push(c2);
 
-                            const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-                            const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
-                            const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
-                            const g1=renderer.xr.getControllerGrip(0);
-                            const mesh1=new THREE.Mesh(geom,mat1);
-                            mesh1.position.z=-0.075;
-                            g1.add(mesh1);
-                            cameraRig.add(g1);
-                            controllerGrips.push(g1);
-                            
-                            const g2=renderer.xr.getControllerGrip(1);
-                            const mesh2=new THREE.Mesh(geom,mat2);
-                            mesh2.position.z=-0.075;
-                            g2.add(mesh2);
-                            cameraRig.add(g2);
-                            controllerGrips.push(g2);
+                                const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+                                const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
+                                const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
+                                const g1=renderer.xr.getControllerGrip(0);
+                                const mesh1=new THREE.Mesh(geom,mat1);
+                                mesh1.position.z=-0.075;
+                                g1.add(mesh1);
+                                cameraRig.add(g1);
+                                controllerGrips.push(g1);
+                                
+                                const g2=renderer.xr.getControllerGrip(1);
+                                const mesh2=new THREE.Mesh(geom,mat2);
+                                mesh2.position.z=-0.075;
+                                g2.add(mesh2);
+                                cameraRig.add(g2);
+                                controllerGrips.push(g2);
 
-                            const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-                            const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-                            const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-                            c1.add(new THREE.Line(lineGeom,lineMat1));
-                            c2.add(new THREE.Line(lineGeom,lineMat2));
-                            
-                            s.addEventListener('end', () => {
-                                isVRMode = false;
-                            });
-                        } catch(e) {
-                            console.error('XR start failed', e);
+                                const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+                                const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+                                const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+                                c1.add(new THREE.Line(lineGeom,lineMat1));
+                                c2.add(new THREE.Line(lineGeom,lineMat2));
+                                
+                                s.addEventListener('end', () => {
+                                    isVRMode = false;
+                                });
+                            } catch(e) {
+                                console.error('XR start failed', e);
+                            }
                         }
-                    }
-                };
-            } else {
+                    };
+                } else {
+                    vrButton.disabled=true;
+                    vrButton.textContent='VR非対応';
+                }
+            }).catch(err=>{
+                console.warn('isSessionSupported error', err);
                 vrButton.disabled=true;
                 vrButton.textContent='VR非対応';
-            }
-        }).catch(err=>{
-            console.warn('isSessionSupported error', err);
+            });
+        } else {
             vrButton.disabled=true;
             vrButton.textContent='VR非対応';
-        });
-    } else {
-        vrButton.disabled=true;
-        vrButton.textContent='VR非対応';
+        }
+
+        const c1=renderer.xr.getController(0);
+        cameraRig.add(c1);
+        controllers.push(c1);
+        const c2=renderer.xr.getController(1);
+        cameraRig.add(c2);
+        controllers.push(c2);
+
+        const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
+        const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
+        const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
+        const g1=renderer.xr.getControllerGrip(0);
+        const mesh1=new THREE.Mesh(geom,mat1);
+        mesh1.position.z=-0.075;
+        g1.add(mesh1);
+        cameraRig.add(g1);
+        controllerGrips.push(g1);
+        
+        const g2=renderer.xr.getControllerGrip(1);
+        const mesh2=new THREE.Mesh(geom,mat2);
+        mesh2.position.z=-0.075;
+        g2.add(mesh2);
+        cameraRig.add(g2);
+        controllerGrips.push(g2);
+
+        const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
+        const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
+        const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
+        c1.add(new THREE.Line(lineGeom,lineMat1));
+        c2.add(new THREE.Line(lineGeom,lineMat2));
     }
 
-    // 初回のコントローラー作成
-    const c1=renderer.xr.getController(0);
-    cameraRig.add(c1);
-    controllers.push(c1);
-    const c2=renderer.xr.getController(1);
-    cameraRig.add(c2);
-    controllers.push(c2);
-
-    const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-    const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
-    const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
-    const g1=renderer.xr.getControllerGrip(0);
-    const mesh1=new THREE.Mesh(geom,mat1);
-    mesh1.position.z=-0.075;
-    g1.add(mesh1);
-    cameraRig.add(g1);
-    controllerGrips.push(g1);
-    
-    const g2=renderer.xr.getControllerGrip(1);
-    const mesh2=new THREE.Mesh(geom,mat2);
-    mesh2.position.z=-0.075;
-    g2.add(mesh2);
-    cameraRig.add(g2);
-    controllerGrips.push(g2);
-
-    const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-    const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-    const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-    c1.add(new THREE.Line(lineGeom,lineMat1));
-    c2.add(new THREE.Line(lineGeom,lineMat2));
-}
     function createVRDebugPanel() {
         vrDebugCanvas=document.createElement('canvas');
         vrDebugCanvas.width=512;
@@ -370,7 +362,7 @@ function loadFBX(buf) {
             if(ext==='glb'||ext==='gltf')loadGLTF(buf);
             else if(ext==='obj')loadOBJ(buf);
             else if(ext==='stl')loadSTL(buf);
-                else if(ext==='fbx')loadFBX(buf);
+            else if(ext==='fbx')loadFBX(buf);
             else document.getElementById('loading').style.display='none';
         };
         r.readAsArrayBuffer(f);
@@ -463,14 +455,12 @@ function loadFBX(buf) {
     }
 
     function zoomIn() {
-        const oldZoom=zoomLevel;
         zoomLevel=Math.max(MIN_FOV,zoomLevel-5);
         camera.fov=zoomLevel;
         camera.updateProjectionMatrix();
     }
 
     function zoomOut() {
-        const oldZoom=zoomLevel;
         zoomLevel=Math.min(MAX_FOV,zoomLevel+5);
         camera.fov=zoomLevel;
         camera.updateProjectionMatrix();
@@ -534,94 +524,87 @@ function loadFBX(buf) {
             pos=camera.position.clone().add(dir.multiplyScalar(3));
         }
         pendingMemoPosition=pos;
-        document.getElementById('inputMethodDialog').style.display='block';
-    }
+document.getElementById('inputMethodDialog').style.display='block';
+}
+function chooseVoiceInput() {
+    document.getElementById('inputMethodDialog').style.display='none';
+    if(pendingMemoPosition&&recognition)startVoiceInputForMemo(pendingMemoPosition);
+}
 
-    function chooseVoiceInput() {
-        document.getElementById('inputMethodDialog').style.display='none';
-        if(pendingMemoPosition&&recognition)startVoiceInputForMemo(pendingMemoPosition);
+function chooseKeyboardInput() {
+    document.getElementById('inputMethodDialog').style.display='none';
+    if(pendingMemoPosition) {
+        document.getElementById('memoTextarea').value='';
+        document.getElementById('memoInputDialog').style.display='block';
     }
+}
 
-    function chooseKeyboardInput() {
-        document.getElementById('inputMethodDialog').style.display='none';
-        if(pendingMemoPosition) {
-            document.getElementById('memoTextarea').value='';
-            document.getElementById('memoInputDialog').style.display='block';
-        }
+function submitMemo() {
+    const txt=document.getElementById('memoTextarea').value.trim();
+    document.getElementById('memoInputDialog').style.display='none';
+    if(txt&&pendingMemoPosition) {
+        createMemo(pendingMemoPosition,txt);
+        toggleMemoMode();
     }
+    pendingMemoPosition=null;
+}
 
-    function submitMemo() {
-        const txt=document.getElementById('memoTextarea').value.trim();
-        document.getElementById('memoInputDialog').style.display='none';
-        if(txt&&pendingMemoPosition) {
-            createMemo(pendingMemoPosition,txt);
-            toggleMemoMode();
-        }
-        pendingMemoPosition=null;
-    }
+function cancelMemoInput() {
+    document.getElementById('memoInputDialog').style.display='none';
+    pendingMemoPosition=null;
+}
 
-    function cancelMemoInput() {
-        document.getElementById('memoInputDialog').style.display='none';
-        pendingMemoPosition=null;
-    }
-
-    // ---------- ここから最小修正版の本体（重要） ----------
-    // createMemo: Sprite -> Plane Mesh（Raycast 安定のため）
-  function createMemo(pos, txt, lookAtPos) {
+function createMemo(pos, txt, lookAtPos) {
     const id = memoCounter++;
-        // canvas を作る（見た目は同じ）
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 512;
-        ctx.font = 'bold 32px Arial';
-        const lines = [];
-        txt.split('\n').forEach(para=>{
-            const words = para.split(' ');
-            let line = '';
-            words.forEach(word=>{
-                const test = line + word + ' ';
-                if(ctx.measureText(test).width > 472 && line !== '') {
-                    lines.push(line.trim());
-                    line = word + ' ';
-                } else {
-                    line = test;
-                }
-            });
-            lines.push(line.trim());
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512;
+    ctx.font = 'bold 32px Arial';
+    const lines = [];
+    txt.split('\n').forEach(para=>{
+        const words = para.split(' ');
+        let line = '';
+        words.forEach(word=>{
+            const test = line + word + ' ';
+            if(ctx.measureText(test).width > 472 && line !== '') {
+                lines.push(line.trim());
+                line = word + ' ';
+            } else {
+                line = test;
+            }
         });
-        canvas.height = (lines.length * 40) + 40;
-        ctx.fillStyle = '#ffd93d';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 32px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        let y = 20;
-        lines.forEach(line=>{
-            ctx.fillText(line,256,y);
-            y += 40;
-        });
+        lines.push(line.trim());
+    });
+    canvas.height = (lines.length * 40) + 40;
+    ctx.fillStyle = '#ffd93d';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    let y = 20;
+    lines.forEach(line=>{
+        ctx.fillText(line,256,y);
+        y += 40;
+    });
 
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.minFilter = THREE.LinearFilter;
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
 
-        // メッシュを使う（PlaneGeometry） — Raycast が安定する
-        const aspect = canvas.height / canvas.width;
-        // base size; 見た目がほぼ Sprite と同等になるように調整
-        const baseWidth = 0.6; // 調整されうる値。小さすぎると当たらないのでやや大きめに
-        const baseHeight = baseWidth * aspect;
-        const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
-        const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: false,    // 描画の前後関係を安定化（UIっぽく前面表示）
-            depthWrite: false
-        });
-        const mesh = new THREE.Mesh(geom, mat);
+    const aspect = canvas.height / canvas.width;
+    const baseWidth = 0.6;
+    const baseHeight = baseWidth * aspect;
+    const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
+    const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geom, mat);
     mesh.position.copy(pos);
     
-    // lookAtPosが指定されていればその方向を向く
     if(lookAtPos) {
         mesh.lookAt(lookAtPos);
     }
@@ -629,474 +612,394 @@ function loadFBX(buf) {
     mesh.renderOrder = 9999;
     mesh.name = `memo_${id}`;
 
-        // store meta
-        mesh.userData = mesh.userData || {};
-        mesh.userData.text = txt;
-        mesh.userData.aspect = aspect;
-        mesh.userData.isMemo = true;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.text = txt;
+    mesh.userData.aspect = aspect;
+    mesh.userData.isMemo = true;
 
-        scene.add(mesh);
+    scene.add(mesh);
 
-        memos.push({id, text: txt, position: pos.clone(), sprite: mesh});
+    memos.push({id, text: txt, position: pos.clone(), sprite: mesh});
+    updateMemoList();
+}
+
+function deleteMemo(id) {
+    const idx=memos.findIndex(m=>m.id===id);
+    if(idx!==-1) {
+        const s = memos[idx].sprite;
+        if(s) scene.remove(s);
+        memos.splice(idx,1);
         updateMemoList();
     }
-
-    function deleteMemo(id) {
-        const idx=memos.findIndex(m=>m.id===id);
-        if(idx!==-1) {
-            const s = memos[idx].sprite;
-            if(s) scene.remove(s);
-            memos.splice(idx,1);
-            updateMemoList();
-        }
-    }
-
-    function updateMemoList() {
-        const list=document.getElementById('memoList');
-        list.innerHTML='';
-        memos.forEach(m=>{
-            const item=document.createElement('div');
-            item.className='memo-item';
-            item.innerHTML=`<div><strong>#${m.id+1}</strong>: ${m.text.replace(/\n/g,'<br>')}</div><button type="button">削除</button>`;
-            const btn = item.querySelector('button');
-            btn.addEventListener('click',()=>deleteMemo(m.id));
-            list.appendChild(item);
-        });
-    }
-
-    // createMemoSprite: 編集で新しいメモを作るときに使う（同様に PlaneMesh を生成）
-    function createMemoSprite(pos, txt) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 512;
-        ctx.font = 'bold 32px Arial';
-        const lines = [];
-        txt.split('\n').forEach(para => {
-            const words = para.split(' ');
-            let line = '';
-            words.forEach(word => {
-                const test = line + word + ' ';
-                if(ctx.measureText(test).width > 472 && line !== '') {
-                    lines.push(line.trim());
-                    line = word + ' ';
-                } else {
-                    line = test;
-                }
-            });
-            lines.push(line.trim());
-        });
-        canvas.height = (lines.length * 40) + 40;
-        ctx.fillStyle = '#ffd93d';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 32px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        let y = 20;
-        lines.forEach(line => {
-            ctx.fillText(line, 256, y);
-            y += 40;
-        });
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.minFilter = THREE.LinearFilter;
-
-        const aspect = canvas.height / canvas.width;
-        const baseWidth = 0.6;
-        const baseHeight = baseWidth * aspect;
-        const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
-        const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: false,
-            depthWrite: false
-        });
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.copy(pos);
-
-        // カメラの方向を向くように回転
-mesh.lookAt(camera.position);
-        
-        mesh.renderOrder = 9999;
-        mesh.userData = mesh.userData || {};
-        mesh.userData.aspect = aspect;
-        scene.add(mesh);
-        return mesh;
-    }
-    // ---------- ここまで最小修正版の本体 ----------
-
-    function initSpeechRecognition() {
-        if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {
-            const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-            recognition=new SR();
-            recognition.lang='ja-JP';
-            recognition.continuous=false;
-            recognition.interimResults=false;
-        } else {
-            document.getElementById('voiceButton').disabled=true;
-            document.getElementById('voiceButton').textContent='🎤 非対応';
-        }
-    }
-
-    let currentMemoPosition=null;
-
-    function startVoiceInputForMemo(pos) {
-        if(!recognition||isRecording)return;
-        currentMemoPosition=pos;
-        isRecording=true;
-        document.getElementById('voiceButton').classList.add('recording');
-        document.getElementById('voiceButton').textContent='🎤 録音中...';
-        recognition.onresult=ev=>{
-            // 録音状態をリセット
-isRecording = false;
-            const transcript=ev.results[0][0].transcript;
-            createMemo(currentMemoPosition,transcript);
-            isRecording=false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        };
-        recognition.onerror=(err)=>{
-            console.error('recognition error', err);
-            isRecording=false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        };
-        try {isRecording = true;
-document.getElementById('status').textContent = '音声認識開始...';
-console.log('Recognition started for memo', memo.id);
-            recognition.start();
-        } catch (e) {
-            console.warn('recognition start error', e);
-            isRecording = false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-        }
-    }
-
-    function toggleVoiceInput() {
-        if(!recognition)return;
-        if(isRecording) {
-            try{ recognition.stop(); }catch(e){}
-            isRecording=false;
-            document.getElementById('voiceButton').classList.remove('recording');
-            document.getElementById('voiceButton').textContent='🎤 音声入力';
-            return;
-        }
-        const dir=new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        const pos=camera.position.clone().add(dir.multiplyScalar(3));
-        startVoiceInputForMemo(pos);
-    }
-
-    window.deleteMemo=deleteMemo;
-
-    function onWindowResize() {
-        camera.aspect=window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth,window.innerHeight);
-    }
-
-    function handleVRControllers(delta) {
-        const session=renderer.xr.getSession();
-        if(!session) {
-            updateVRDebugPanel('No VR session\nFOV: '+zoomLevel.toFixed(1));
-            return;
-        }
-        if(!session.inputSources||session.inputSources.length===0) {
-            updateVRDebugPanel('No input sources\nFOV: '+zoomLevel.toFixed(1));
-            return;
-        }
-        let debugInfo=['VR Debug',''];
-        debugInfo.push('=== MEMO MODE: ALWAYS ON ===');
-        debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
-        debugInfo.push('');
-
-        for(let i=0;i<session.inputSources.length;i++) {
-            const inputSource=session.inputSources[i];
-            const gamepad=inputSource.gamepad;
-            if(!gamepad) {
-                debugInfo.push(`${inputSource.handedness}: No gamepad`);
-                continue;
-            }
-
-            const axesStr=gamepad.axes.map((v,idx)=>`${idx}:${v.toFixed(2)}`).join(' ');
-            debugInfo.push(`${inputSource.handedness}:`);
-            debugInfo.push(`  axes: ${axesStr}`);
-            const pressedButtons=[];
-            for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
-                if(gamepad.buttons[btnIdx].pressed) pressedButtons.push(btnIdx);
-            }
-            debugInfo.push(`  btns: ${pressedButtons.length>0?pressedButtons.join(','):'none'}`);
-
-            if(inputSource.handedness==='left') {
-                let moveX=0,moveZ=0;
-                if(Math.abs(gamepad.axes[0])>0.05)moveX=gamepad.axes[0];
-                if(Math.abs(gamepad.axes[1])>0.05)moveZ=-gamepad.axes[1];
-                if(Math.abs(gamepad.axes[2])>0.05)moveX=gamepad.axes[2];
-                if(Math.abs(gamepad.axes[3])>0.05)moveZ=-gamepad.axes[3];
-                debugInfo.push(`  moveX:${moveX.toFixed(3)} moveZ:${moveZ.toFixed(3)}`);
-                if(Math.abs(moveX)>0.05||Math.abs(moveZ)>0.05) {
-                    const cameraWorldQuaternion=new THREE.Quaternion();
-                    camera.getWorldQuaternion(cameraWorldQuaternion);
-                    const forward=new THREE.Vector3(0,0,-1);
-                    forward.applyQuaternion(cameraWorldQuaternion);
-                    forward.y=0;
-                    forward.normalize();
-                    const right=new THREE.Vector3(1,0,0);
-                    right.applyQuaternion(cameraWorldQuaternion);
-                    right.y=0;
-                    right.normalize();
-                    const moveVector=new THREE.Vector3();
-                    moveVector.add(forward.multiplyScalar(moveZ*VR_MOVE_SPEED*delta));
-                    moveVector.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
-                    cameraRig.position.x+=moveVector.x;
-                    cameraRig.position.z+=moveVector.z;
-                    debugInfo.push(`  *** MOVING! ***`);
-                }
-
-                const btn4Pressed=gamepad.buttons[4]&&gamepad.buttons[4].pressed;
-                if(btn4Pressed) {
-                    if(!xButtonCooldown) {
-                        if(xButtonPressTime===0) {
-                            xButtonPressTime=performance.now();
-                            debugInfo.push(`  Btn4 START press`);
-                        } else {
-                            const pressDuration=performance.now()-xButtonPressTime;
-                            debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
-                            if(pressDuration>500) {
-                                vrMemoMode=!vrMemoMode;
-                                debugInfo.push(`  *** MEMO MODE: ${vrMemoMode?'ON':'OFF'} ***`);
-                                xButtonCooldown=true;
-                                xButtonPressTime=0;
-                            }
-                        }
-                    } else {
-                        debugInfo.push(`  Btn4 (cooldown)`);
-                    }
-                } else {
-                    xButtonPressTime=0;
-                    xButtonCooldown=false;
-                }
-
-                for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
-                    if(gamepad.buttons[btnIdx].pressed&&btnIdx!==4) {
-                        if(btnIdx===0) {
-                            cameraRig.position.y+=VR_MOVE_SPEED*delta;
-                            debugInfo.push(`  UP!`);
-                        } else if(btnIdx===1) {
-                            cameraRig.position.y-=VR_MOVE_SPEED*delta;
-                            if(cameraRig.position.y<0)cameraRig.position.y=0;
-                            debugInfo.push(`  DOWN!`);
-                        }
-                    }
-                }
-            }
-
-           if(inputSource.handedness==='right') {
-    const axes=gamepad.axes;
-    if(axes.length>=4) {
-        const rotX=axes[2]||0;
-        const rotY=axes[3]||0;
-        if(Math.abs(rotX)>0.1) {
-            cameraRig.rotation.y-=rotX*VR_ROTATION_SPEED*delta;
-            debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
-        }
-        if(Math.abs(rotY)>0.1) {
-            camera.rotation.x-=rotY*VR_ROTATION_SPEED*delta;
-            camera.rotation.x=Math.max(-Math.PI/3,Math.min(Math.PI/3,camera.rotation.x));
-            debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
-        }
-    }
-
-    // ホバー検出（ここに追加）
-    try {
-        const raycaster = new THREE.Raycaster();
-        const controllerWorldPos = new THREE.Vector3();
-        const controllerWorldQuat = new THREE.Quaternion();
-        controllers[1].getWorldPosition(controllerWorldPos);
-        controllers[1].getWorldQuaternion(controllerWorldQuat);
-        const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
-        raycaster.set(controllerWorldPos, direction);
-        raycaster.near = 0.01;
-        raycaster.far = 20;
-        const memoObjs = memos.map(m => m.sprite).filter(Boolean);
-        const hits = raycaster.intersectObjects(memoObjs, false);
-        
-        // 前回ホバーしていたメモを元に戻す
-        if(hoveredMemo && hoveredMemo.hoverFrame) {
-            scene.remove(hoveredMemo.hoverFrame);
-            delete hoveredMemo.hoverFrame;
-            hoveredMemo = null;
-        }
-        
-        // 新しくホバーしているメモにハイライトを追加
-if(hits.length > 0) {
-    const hitObj = hits[0].object;
-    const memo = memos.find(m => m.sprite === hitObj);
-    if(memo && memo !== editingMemo) { // 編集中でないメモのみ
-        hoveredMemo = memo;
-        const hoverFrame = new THREE.Mesh(
-            new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.1, memo.sprite.geometry.parameters.height * 1.1),
-            new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }) // シアン色
-        );
-        hoverFrame.position.copy(memo.sprite.position);
-        
-        // メモと同じ向きにする
-        hoverFrame.rotation.copy(memo.sprite.rotation);
-        
-        hoverFrame.position.z -= 0.005;
-        hoverFrame.name = 'hoverFrame';
-        scene.add(hoverFrame);
-        memo.hoverFrame = hoverFrame;
-        debugInfo.push(`  >>> HOVERING MEMO #${memo.id} <<<`);
-    }
-}
-    } catch(e) {
-        console.error('Hover detection error', e);
-    }
-
-   // ボタン1（Bボタン）で削除
-const btn1=gamepad.buttons[1];
-const isBtn1Pressed=btn1&&btn1.pressed;
-if(isBtn1Pressed&&!btn1WasPressed) {
-    // 削除確認パネルが表示されていない場合のみ実行
-    const confirmPanel = scene.getObjectByName('deleteConfirmPanel');
-    if(hoveredMemo && !confirmPanel) {
-        debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
-        showVRDeleteConfirm(hoveredMemo);
-    }
-}
-btn1WasPressed=isBtn1Pressed;
-
-// 右トリガー処理（新しい操作方式）
-const triggerBtn=gamepad.buttons[0];
-const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
-
-if(isTriggerPressed&&!rightTriggerPressed) {
-    // トリガーを押した瞬間
-    rightTriggerPressed=true;
-    debugInfo.push(`  Trigger DOWN!`);
-    
-    if(hoveredMemo) {
-        // ホバー中のメモがある場合は編集開始
-        debugInfo.push(`  >>> EDITING MEMO #${hoveredMemo.id} <<<`);
-        startEditMemo(hoveredMemo);
-    } else {
-        // メモを作成して音声入力開始
-        debugInfo.push(`  >>> CREATING NEW MEMO <<<`);
-        const rightController = controllers[1];
-        if(rightController) {
-            const controllerWorldPos = new THREE.Vector3();
-            rightController.getWorldPosition(controllerWorldPos);
-            const direction = new THREE.Vector3(0, 0, -1);
-            const controllerWorldQuat = new THREE.Quaternion();
-            rightController.getWorldQuaternion(controllerWorldQuat);
-            direction.applyQuaternion(controllerWorldQuat);
-            const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
-            
-            // 仮メモを作成
-            const tempMemoText = "録音中...";
-            createMemo(position, tempMemoText, controllerWorldPos);
-            
-            // 作成したばかりのメモを編集対象に
-            const newMemo = memos[memos.length - 1];
-            startEditMemo(newMemo);
-        }
-    }
-} else if(!isTriggerPressed&&rightTriggerPressed) {
-    // トリガーを離した瞬間
-    rightTriggerPressed=false;
-    debugInfo.push(`  Trigger UP!`);
-    
-    // 音声認識を停止
-    if(recognition && editingMemo) {
-        try {
-            recognition.stop();
-            debugInfo.push(`  >>> STOPPING VOICE INPUT <<<`);
-        } catch(e) {
-            console.error('Recognition stop error:', e);
-        }
-    }
 }
 
-                
-            }
-            debugInfo.push('');
-        }
-
-        debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
-        updateVRDebugPanel(debugInfo.join('\n'));
-    }
-
-   function placeVRMemo() {
-    try {
-        const rightController = controllers[1];
-        if (!rightController) {
-            console.warn('Right controller not available');
-            return;
-        }
-        const controllerWorldPos = new THREE.Vector3();
-        rightController.getWorldPosition(controllerWorldPos);
-        const direction = new THREE.Vector3(0, 0, -1);
-        const controllerWorldQuat = new THREE.Quaternion();
-        rightController.getWorldQuaternion(controllerWorldQuat);
-        direction.applyQuaternion(controllerWorldQuat);
-        const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
-        const timestamp = new Date().toLocaleTimeString('ja-JP');
-        const memoText = `VRメモ ${timestamp}`;
-        
-        // メモを作成してコントローラーの方を向ける
-        createMemo(position, memoText, controllerWorldPos);
-    } catch(error) {
-        console.error('Error in placeVRMemo:', error);
-    }
+function updateMemoList() {
+    const list=document.getElementById('memoList');
+    list.innerHTML='';
+    memos.forEach(m=>{
+        const item=document.createElement('div');
+        item.className='memo-item';
+        item.innerHTML=`<div><strong>#${m.id+1}</strong>: ${m.text.replace(/\n/g,'<br>')}</div><button type="button">削除</button>`;
+        const btn = item.querySelector('button');
+        btn.addEventListener('click',()=>deleteMemo(m.id));
+        list.appendChild(item);
+    });
 }
 
-    // Raycast check for memos (works with mesh planes)
-    function checkAndEditMemo(controller) {
-        try {
-            const raycaster = new THREE.Raycaster();
-            const controllerWorldPos = new THREE.Vector3();
-            const controllerWorldQuat = new THREE.Quaternion();
-            controller.getWorldPosition(controllerWorldPos);
-            controller.getWorldQuaternion(controllerWorldQuat);
-            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
-            raycaster.set(controllerWorldPos, direction);
-            // ensure reasonable near/far
-            raycaster.near = 0.01;
-            raycaster.far = 20;
-            const memoObjs = memos.map(m => m.sprite).filter(Boolean);
-            const hits = raycaster.intersectObjects(memoObjs, false);
-            if(hits.length > 0) {
-                const hitObj = hits[0].object;
-                const memo = memos.find(m => m.sprite === hitObj);
-                if(memo) startEditMemo(memo);
-                else console.warn('Hit object but no memo found');
+function createMemoSprite(pos, txt) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512;
+    ctx.font = 'bold 32px Arial';
+    const lines = [];
+    txt.split('\n').forEach(para => {
+        const words = para.split(' ');
+        let line = '';
+        words.forEach(word => {
+            const test = line + word + ' ';
+            if(ctx.measureText(test).width > 472 && line !== '') {
+                lines.push(line.trim());
+                line = word + ' ';
             } else {
-                // nothing hit
+                line = test;
             }
-        } catch(error) {
-            console.error('Error in checkAndEditMemo:', error);
+        });
+        lines.push(line.trim());
+    });
+    canvas.height = (lines.length * 40) + 40;
+    ctx.fillStyle = '#ffd93d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    let y = 20;
+    lines.forEach(line => {
+        ctx.fillText(line, 256, y);
+        y += 40;
+    });
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+
+    const aspect = canvas.height / canvas.width;
+    const baseWidth = 0.6;
+    const baseHeight = baseWidth * aspect;
+    const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
+    const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.copy(pos);
+    mesh.lookAt(camera.position);
+    
+    mesh.renderOrder = 9999;
+    mesh.userData = mesh.userData || {};
+    mesh.userData.aspect = aspect;
+    scene.add(mesh);
+    return mesh;
+}
+
+function initSpeechRecognition() {
+    if('webkitSpeechRecognition' in window||'SpeechRecognition' in window) {
+        const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        recognition=new SR();
+        recognition.lang='ja-JP';
+        recognition.continuous=false;
+        recognition.interimResults=false;
+    } else {
+        document.getElementById('voiceButton').disabled=true;
+        document.getElementById('voiceButton').textContent='🎤 非対応';
+    }
+}
+
+let currentMemoPosition=null;
+
+function startVoiceInputForMemo(pos) {
+    if(!recognition||isRecording)return;
+    currentMemoPosition=pos;
+    isRecording=true;
+    document.getElementById('voiceButton').classList.add('recording');
+    document.getElementById('voiceButton').textContent='🎤 録音中...';
+    recognition.onresult=ev=>{
+        isRecording = false;
+        const transcript=ev.results[0][0].transcript;
+        createMemo(currentMemoPosition,transcript);
+        document.getElementById('voiceButton').classList.remove('recording');
+        document.getElementById('voiceButton').textContent='🎤 音声入力';
+    };
+    recognition.onerror=(err)=>{
+        console.error('recognition error', err);
+        isRecording=false;
+        document.getElementById('voiceButton').classList.remove('recording');
+        document.getElementById('voiceButton').textContent='🎤 音声入力';
+    };
+    try {
+        isRecording = true;
+        document.getElementById('status').textContent = '音声認識開始...';
+        recognition.start();
+    } catch (e) {
+        console.warn('recognition start error', e);
+        isRecording = false;
+        document.getElementById('voiceButton').classList.remove('recording');
+        document.getElementById('voiceButton').textContent='🎤 音声入力';
+    }
+}
+
+function toggleVoiceInput() {
+    if(!recognition)return;
+    if(isRecording) {
+        try{ recognition.stop(); }catch(e){}
+        isRecording=false;
+        document.getElementById('voiceButton').classList.remove('recording');
+        document.getElementById('voiceButton').textContent='🎤 音声入力';
+        return;
+    }
+    const dir=new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const pos=camera.position.clone().add(dir.multiplyScalar(3));
+    startVoiceInputForMemo(pos);
+}
+
+window.deleteMemo=deleteMemo;
+
+function onWindowResize() {
+    camera.aspect=window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth,window.innerHeight);
+}
+
+function handleVRControllers(delta) {
+    const session=renderer.xr.getSession();
+    if(!session) {
+        updateVRDebugPanel('No VR session\nFOV: '+zoomLevel.toFixed(1));
+        return;
+    }
+    if(!session.inputSources||session.inputSources.length===0) {
+        updateVRDebugPanel('No input sources\nFOV: '+zoomLevel.toFixed(1));
+        return;
+    }
+    let debugInfo=['VR Debug',''];
+    debugInfo.push('=== MEMO MODE: ALWAYS ON ===');
+    debugInfo.push(`FOV: ${zoomLevel.toFixed(1)} (${MIN_FOV}-${MAX_FOV})`);
+    debugInfo.push('');
+
+    for(let i=0;i<session.inputSources.length;i++) {
+        const inputSource=session.inputSources[i];
+        const gamepad=inputSource.gamepad;
+        if(!gamepad) {
+            debugInfo.push(`${inputSource.handedness}: No gamepad`);
+            continue;
         }
+
+        const axesStr=gamepad.axes.map((v,idx)=>`${idx}:${v.toFixed(2)}`).join(' ');
+        debugInfo.push(`${inputSource.handedness}:`);
+        debugInfo.push(`  axes: ${axesStr}`);
+        const pressedButtons=[];
+        for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
+            if(gamepad.buttons[btnIdx].pressed) pressedButtons.push(btnIdx);
+        }
+        debugInfo.push(`  btns: ${pressedButtons.length>0?pressedButtons.join(','):'none'}`);
+
+        if(inputSource.handedness==='left') {
+            let moveX=0,moveZ=0;
+            if(Math.abs(gamepad.axes[0])>0.05)moveX=gamepad.axes[0];
+            if(Math.abs(gamepad.axes[1])>0.05)moveZ=-gamepad.axes[1];
+            if(Math.abs(gamepad.axes[2])>0.05)moveX=gamepad.axes[2];
+            if(Math.abs(gamepad.axes[3])>0.05)moveZ=-gamepad.axes[3];
+            debugInfo.push(`  moveX:${moveX.toFixed(3)} moveZ:${moveZ.toFixed(3)}`);
+            if(Math.abs(moveX)>0.05||Math.abs(moveZ)>0.05) {
+                const cameraWorldQuaternion=new THREE.Quaternion();
+                camera.getWorldQuaternion(cameraWorldQuaternion);
+                const forward=new THREE.Vector3(0,0,-1);
+                forward.applyQuaternion(cameraWorldQuaternion);
+                forward.y=0;
+                forward.normalize();
+                const right=new THREE.Vector3(1,0,0);
+                right.applyQuaternion(cameraWorldQuaternion);
+                right.y=0;
+                right.normalize();
+                const moveVector=new THREE.Vector3();
+                moveVector.add(forward.multiplyScalar(moveZ*VR_MOVE_SPEED*delta));
+                moveVector.add(right.multiplyScalar(moveX*VR_MOVE_SPEED*delta));
+                cameraRig.position.x+=moveVector.x;
+                cameraRig.position.z+=moveVector.z;
+                debugInfo.push(`  *** MOVING! ***`);
+            }
+
+            const btn4Pressed=gamepad.buttons[4]&&gamepad.buttons[4].pressed;
+            if(btn4Pressed) {
+                if(!xButtonCooldown) {
+                    if(xButtonPressTime===0) {
+                        xButtonPressTime=performance.now();
+                        debugInfo.push(`  Btn4 START press`);
+                    } else {
+                        const pressDuration=performance.now()-xButtonPressTime;
+                        debugInfo.push(`  Btn4 holding... ${(pressDuration/1000).toFixed(1)}s`);
+                        if(pressDuration>500) {
+                            vrMemoMode=!vrMemoMode;
+                            debugInfo.push(`  *** MEMO MODE: ${vrMemoMode?'ON':'OFF'} ***`);
+                            xButtonCooldown=true;
+                            xButtonPressTime=0;
+                        }
+                    }
+                } else {
+                    debugInfo.push(`  Btn4 (cooldown)`);
+                }
+            } else {
+                xButtonPressTime=0;
+                xButtonCooldown=false;
+            }
+
+            for(let btnIdx=0;btnIdx<gamepad.buttons.length;btnIdx++) {
+                if(gamepad.buttons[btnIdx].pressed&&btnIdx!==4) {
+                    if(btnIdx===0) {
+                        cameraRig.position.y+=VR_MOVE_SPEED*delta;
+                        debugInfo.push(`  UP!`);
+                    } else if(btnIdx===1) {
+                        cameraRig.position.y-=VR_MOVE_SPEED*delta;
+                        if(cameraRig.position.y<0)cameraRig.position.y=0;
+                        debugInfo.push(`  DOWN!`);
+                    }
+                }
+            }
+        }
+
+        if(inputSource.handedness==='right') {
+            const axes=gamepad.axes;
+            if(axes.length>=4) {
+                const rotX=axes[2]||0;
+                const rotY=axes[3]||0;
+                if(Math.abs(rotX)>0.1) {
+                    cameraRig.rotation.y-=rotX*VR_ROTATION_SPEED*delta;
+                    debugInfo.push(`  Rotating Y: ${rotX.toFixed(2)}`);
+                }
+                if(Math.abs(rotY)>0.1) {
+                    camera.rotation.x-=rotY*VR_ROTATION_SPEED*delta;
+                    camera.rotation.x=Math.max(-Math.PI/3,Math.min(Math.PI/3,camera.rotation.x));
+                    debugInfo.push(`  Rotating X: ${rotY.toFixed(2)}`);
+                }
+            }
+
+            try {
+                const raycaster = new THREE.Raycaster();
+                const controllerWorldPos = new THREE.Vector3();
+                const controllerWorldQuat = new THREE.Quaternion();
+                controllers[1].getWorldPosition(controllerWorldPos);
+                controllers[1].getWorldQuaternion(controllerWorldQuat);
+                const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
+                raycaster.set(controllerWorldPos, direction);
+                raycaster.near = 0.01;
+                raycaster.far = 20;
+                const memoObjs = memos.map(m => m.sprite).filter(Boolean);
+                const hits = raycaster.intersectObjects(memoObjs, false);
+                
+                if(hoveredMemo && hoveredMemo.hoverFrame) {
+                    scene.remove(hoveredMemo.hoverFrame);
+                    delete hoveredMemo.hoverFrame;
+                    hoveredMemo = null;
+                }
+                
+                if(hits.length > 0) {
+                    const hitObj = hits[0].object;
+                    const memo = memos.find(m => m.sprite === hitObj);
+                    if(memo && memo !== editingMemo) {
+                        hoveredMemo = memo;
+                        const hoverFrame = new THREE.Mesh(
+                            new THREE.PlaneGeometry(memo.sprite.geometry.parameters.width * 1.1, memo.sprite.geometry.parameters.height * 1.1),
+                            new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.3, side: THREE.DoubleSide })
+                        );
+                        hoverFrame.position.copy(memo.sprite.position);
+                        hoverFrame.rotation.copy(memo.sprite.rotation);
+                        hoverFrame.position.z -= 0.005;
+                        hoverFrame.name = 'hoverFrame';
+                        scene.add(hoverFrame);
+                        memo.hoverFrame = hoverFrame;
+                        debugInfo.push(`  >>> HOVERING MEMO #${memo.id} <<<`);
+                    }
+                }
+            } catch(e) {
+                console.error('Hover detection error', e);
+            }
+
+            const btn1=gamepad.buttons[1];
+            const isBtn1Pressed=btn1&&btn1.pressed;
+            if(isBtn1Pressed&&!btn1WasPressed) {
+                const confirmPanel = scene.getObjectByName('deleteConfirmPanel');
+                if(hoveredMemo && !confirmPanel) {
+                    debugInfo.push(`  >>> BTN1: DELETING MEMO #${hoveredMemo.id} <<<`);
+                    showVRDeleteConfirm(hoveredMemo);
+                }
+            }
+            btn1WasPressed=isBtn1Pressed;
+
+            const triggerBtn=gamepad.buttons[0];
+            const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
+
+            if(isTriggerPressed&&!rightTriggerPressed) {
+                rightTriggerPressed=true;
+                debugInfo.push(`  Trigger DOWN!`);
+                
+                if(hoveredMemo) {
+                    debugInfo.push(`  >>> EDITING MEMO #${hoveredMemo.id} <<<`);
+                    startEditMemo(hoveredMemo);
+                } else {
+                    debugInfo.push(`  >>> CREATING NEW MEMO <<<`);
+                    const rightController = controllers[1];
+                    if(rightController) {
+                        const controllerWorldPos = new THREE.Vector3();
+                        rightController.getWorldPosition(controllerWorldPos);
+                        const direction = new THREE.Vector3(0, 0, -1);
+                        const controllerWorldQuat = new THREE.Quaternion();
+                        rightController.getWorldQuaternion(controllerWorldQuat);
+                        direction.applyQuaternion(controllerWorldQuat);
+                        const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
+                        
+                        const tempMemoText = "録音中...";
+                        createMemo(position, tempMemoText, controllerWorldPos);
+                        
+                        const newMemo = memos[memos.length - 1];
+                        startEditMemo(newMemo);
+                    }
+                }
+            } else if(!isTriggerPressed&&rightTriggerPressed) {
+                rightTriggerPressed=false;
+                debugInfo.push(`  Trigger UP!`);
+                
+                if(recognition && editingMemo) {
+                    try {
+                        recognition.stop();
+                        debugInfo.push(`  >>> STOPPING VOICE INPUT <<<`);
+                    } catch(e) {
+                        console.error('Recognition stop error:', e);
+                    }
+                }
+            }
+        }
+        debugInfo.push('');
     }
 
-    
+    debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
+    updateVRDebugPanel(debugInfo.join('\n'));
+}
 
 function startEditMemo(memo) {
-if(isRecording) {
-    try {
-        recognition.stop();
-    } catch(e) {
-        console.warn('Failed to stop previous recognition', e);
+    if(isRecording) {
+        try {
+            recognition.stop();
+        } catch(e) {
+            console.warn('Failed to stop previous recognition', e);
+        }
+        isRecording = false;
     }
-    isRecording = false;
-}
     if(!recognition) {
         document.getElementById('status').textContent = '音声認識が利用できません';
         return;
     }
     
-    // 前の編集中のメモの枠を削除
     if(editingMemo && editingMemo.editFrame) {
         scene.remove(editingMemo.editFrame);
         delete editingMemo.editFrame;
@@ -1114,7 +1017,6 @@ if(isRecording) {
     scene.add(frame);
     memo.editFrame = frame;
 
-    // 音声認識中のマークを作成
     const recordingCanvas = document.createElement('canvas');
     recordingCanvas.width = 512;
     recordingCanvas.height = 256;
@@ -1132,7 +1034,6 @@ if(isRecording) {
     scene.add(recordingMark);
     memo.recordingMark = recordingMark;
     
-    // マイクからの音声を取得
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
             if(!audioContext) {
@@ -1159,11 +1060,9 @@ if(isRecording) {
                 
                 const ctx = recordingCanvas.getContext('2d');
                 
-                // 背景を再描画
                 ctx.fillStyle = 'rgba(0,0,0,0.8)';
                 ctx.fillRect(0, 0, 512, 256);
                 
-                // マイクアイコンを再描画
                 ctx.fillStyle = 'rgba(255,0,0,0.9)';
                 ctx.beginPath();
                 ctx.arc(100, 128, 60, 0, Math.PI * 2);
@@ -1174,47 +1073,42 @@ if(isRecording) {
                 ctx.textBaseline = 'middle';
                 ctx.fillText('🎤', 100, 128);
                 
-                // イコライザーバー（8本）
                 const barCount = 8;
                 const barWidth = 30;
                 const barGap = 10;
                 const startX = 220;
                 
-                // 音量データを取得（時間領域データ）
-audioAnalyser.getByteTimeDomainData(audioDataArray);
+                audioAnalyser.getByteTimeDomainData(audioDataArray);
 
-// 全体の音量を計算
-let sum = 0;
-for(let i = 0; i < bufferLength; i++) {
-    const value = audioDataArray[i] - 128; // 128を中心とした値に変換
-    sum += value * value;
-}
-const rms = Math.sqrt(sum / bufferLength);
-const normalizedVolume = rms / 128; // 0-1の範囲に正規化
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    const value = audioDataArray[i] - 128;
+                    sum += value * value;
+                }
+                const rms = Math.sqrt(sum / bufferLength);
+                const normalizedVolume = rms / 128;
 
-for(let i = 0; i < barCount; i++) {
-    // 各バーに少しランダムな変動を加える
-    const randomFactor = 0.7 + Math.random() * 0.3;
-    const height = normalizedVolume * 180 * randomFactor + 20; // 20-200の範囲
-    
-    const x = startX + i * (barWidth + barGap);
-    const y = 128 - height / 2;
-    
-    const gradient = ctx.createLinearGradient(x, y, x, y + height);
-    gradient.addColorStop(0, '#00ff00');
-    gradient.addColorStop(0.5, '#ffff00');
-    gradient.addColorStop(1, '#ff0000');
-    
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, y, barWidth, height);
-}
+                for(let i = 0; i < barCount; i++) {
+                    const randomFactor = 0.7 + Math.random() * 0.3;
+                    const height = normalizedVolume * 180 * randomFactor + 20;
+                    
+                    const x = startX + i * (barWidth + barGap);
+                    const y = 128 - height / 2;
+                    
+                    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+                    gradient.addColorStop(0, '#00ff00');
+                    gradient.addColorStop(0.5, '#ffff00');
+                    gradient.addColorStop(1, '#ff0000');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(x, y, barWidth, height);
+                }
                 
                 recordingTex.needsUpdate = true;
                 animationId = requestAnimationFrame(animateEqualizer);
             }
             animateEqualizer();
             
-            // ストリームを保存してクリーンアップできるように
             memo.audioStream = stream;
             memo.animationId = animationId;
         })
@@ -1223,19 +1117,18 @@ for(let i = 0; i < barCount; i++) {
         });
 
     recognition.onresult = ev => {
-        // 録音状態をリセット
-isRecording = false;
+        isRecording = false;
         const transcript = ev.results[0][0].transcript;
         
-        // オーディオストリームとアニメーションを停止
         if(editingMemo.audioStream) {
             editingMemo.audioStream.getTracks().forEach(track => track.stop());
+            delete editingMemo.audioStream;
         }
         if(editingMemo.animationId) {
             cancelAnimationFrame(editingMemo.animationId);
+            delete editingMemo.animationId;
         }
         
-        // 録音マークを削除
         if(editingMemo.recordingMark) {
             scene.remove(editingMemo.recordingMark);
             delete editingMemo.recordingMark;
@@ -1256,16 +1149,17 @@ isRecording = false;
 
     recognition.onerror = (e) => {
         console.error('Voice recognition error during edit', e);
+        isRecording = false;
         
-        // オーディオストリームとアニメーションを停止
         if(editingMemo && editingMemo.audioStream) {
             editingMemo.audioStream.getTracks().forEach(track => track.stop());
+            delete editingMemo.audioStream;
         }
         if(editingMemo && editingMemo.animationId) {
             cancelAnimationFrame(editingMemo.animationId);
+            delete editingMemo.animationId;
         }
         
-        // 録音マークを削除
         if(editingMemo && editingMemo.recordingMark) {
             scene.remove(editingMemo.recordingMark);
             delete editingMemo.recordingMark;
@@ -1279,27 +1173,24 @@ isRecording = false;
         document.getElementById('status').textContent = '音声認識エラー';
     };
 
-    // ↓↓↓ ここに以下を追加 ↓↓↓
     recognition.onend = () => {
-    console.log('Recognition ended, isRecording:', isRecording);
-    
-    // onresultが既に処理済みの場合は何もしない
-    if(!editingMemo) return;
-    
-    // タイムアウトや中断の場合のクリーンアップ
-    isRecording = false;
-    
-        console.log('Recognition ended');
+        console.log('Recognition ended, isRecording:', isRecording);
         
-        // オーディオストリームとアニメーションを停止
+        if(!editingMemo) return;
+        
+        isRecording = false;
+        
+        console.log('Recognition ended - cleaning up');
+        
         if(editingMemo && editingMemo.audioStream) {
             editingMemo.audioStream.getTracks().forEach(track => track.stop());
+            delete editingMemo.audioStream;
         }
         if(editingMemo && editingMemo.animationId) {
             cancelAnimationFrame(editingMemo.animationId);
+            delete editingMemo.animationId;
         }
         
-        // 録音マークを削除
         if(editingMemo && editingMemo.recordingMark) {
             scene.remove(editingMemo.recordingMark);
             delete editingMemo.recordingMark;
@@ -1309,85 +1200,31 @@ isRecording = false;
             scene.remove(editingMemo.editFrame);
             delete editingMemo.editFrame;
         }
+        
+        editingMemo = null;
+        document.getElementById('status').textContent = '音声入力がキャンセルされました';
     };
-    // ↑↑↑ ここまで追加 ↑↑↑
 
-    try {isRecording = true;
-document.getElementById('status').textContent = '音声認識開始...';
-console.log('Recognition started for memo', memo.id);
+    try {
+        isRecording = true;
+        document.getElementById('status').textContent = '音声認識開始...';
+        console.log('Recognition started for memo', memo.id);
         recognition.start();
     } catch (e) {
         console.error('recognition.start error', e);
         
-        // オーディオストリームを停止
         if(memo.audioStream) {
             memo.audioStream.getTracks().forEach(track => track.stop());
         }
         
-        // 録音マークを削除
         if(memo.recordingMark) {
             scene.remove(memo.recordingMark);
             delete memo.recordingMark;
         }
     }
 }
-    function createMemoSprite(pos, txt) {
-        // returns a Mesh plane (same as in createMemo)
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 512;
-        ctx.font = 'bold 32px Arial';
-        const lines = [];
-        txt.split('\n').forEach(para => {
-            const words = para.split(' ');
-            let line = '';
-            words.forEach(word => {
-                const test = line + word + ' ';
-                if(ctx.measureText(test).width > 472 && line !== '') {
-                    lines.push(line.trim());
-                    line = word + ' ';
-                } else {
-                    line = test;
-                }
-            });
-            lines.push(line.trim());
-        });
-        canvas.height = (lines.length * 40) + 40;
-        ctx.fillStyle = '#ffd93d';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 32px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        let y = 20;
-        lines.forEach(line => {
-            ctx.fillText(line, 256, y);
-            y += 40;
-        });
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.minFilter = THREE.LinearFilter;
 
-        const aspect = canvas.height / canvas.width;
-        const baseWidth = 0.6;
-        const baseHeight = baseWidth * aspect;
-        const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
-        const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: false,
-            depthWrite: false
-        });
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.copy(pos);
-        mesh.renderOrder = 9999;
-        mesh.userData = mesh.userData || {};
-        mesh.userData.aspect = aspect;
-        scene.add(mesh);
-        return mesh;
-    }
-
-        function showVRDeleteConfirm(memo) {
+function showVRDeleteConfirm(memo) {
     pendingDeleteMemo = memo;
     const confirmPanel = new THREE.Group();
     confirmPanel.name = 'deleteConfirmPanel';
@@ -1405,12 +1242,11 @@ console.log('Recognition started for memo', memo.id);
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
     ctx.fillText('このメモを削除しますか?', 256, 60);
-    ctx.font = 'bold 24px Arial';
-    ctx.fillStyle = '#ff0000';
-    ctx.fillText('Aボタン: 削除', 256, 130);
-    ctx.fillStyle = '#00ff00';
-    ctx.fillText('Bボタン: キャンセル', 256, 170);
-    
+ctx.font = 'bold 24px Arial';
+ctx.fillStyle = '#ff0000';
+ctx.fillText('Aボタン: 削除', 256, 130);
+ctx.fillStyle = '#00ff00';
+ctx.fillText('Bボタン: キャンセル', 256, 170);
     const bgTex = new THREE.CanvasTexture(bgCanvas);
     const bgMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(1.5, 0.75),
@@ -1438,17 +1274,14 @@ function handleDeleteConfirmInput(session) {
         const gamepad = inputSource.gamepad;
         if(!gamepad) continue;
         
-        // 右コントローラーのAボタン（ボタン4）で削除
         if(inputSource.handedness === 'right') {
             const aButton = gamepad.buttons[4];
             if(aButton && aButton.pressed) {
-                // ホバー枠を削除
                 if(pendingDeleteMemo.hoverFrame) {
                     scene.remove(pendingDeleteMemo.hoverFrame);
                     delete pendingDeleteMemo.hoverFrame;
                 }
                 
-                // メモを削除
                 deleteMemo(pendingDeleteMemo.id);
                 scene.remove(panel);
                 pendingDeleteMemo = null;
@@ -1458,7 +1291,6 @@ function handleDeleteConfirmInput(session) {
             }
         }
         
-        // 右コントローラーのBボタン（ボタン5）でキャンセル
         if(inputSource.handedness === 'right') {
             const bButton = gamepad.buttons[5];
             if(bButton && bButton.pressed) {
@@ -1470,40 +1302,41 @@ function handleDeleteConfirmInput(session) {
         }
     }
 }
-    function animate() {
+
+function animate() {
     const time=performance.now();
     const delta=(time-prevTime)/1000;
     if(renderer.xr.isPresenting) {
         const session = renderer.xr.getSession();
         if(session) {
-            handleDeleteConfirmInput(session);  // ← 追加
+            handleDeleteConfirmInput(session);
         }
         handleVRControllers(delta);
     } else {
-            velocity.x-=velocity.x*10*delta;
-            velocity.z-=velocity.z*10*delta;
-            direction.z=Number(moveBackward)-Number(moveForward);
-            direction.x=Number(moveLeft)-Number(moveRight);
-            direction.normalize();
-            if(moveForward||moveBackward)velocity.z-=direction.z*MOVE_SPEED*delta;
-            if(moveLeft||moveRight)velocity.x-=direction.x*MOVE_SPEED*delta;
-            const forward=new THREE.Vector3(0,0,-1);
-            forward.applyQuaternion(camera.quaternion);
-            forward.y=0;
-            forward.normalize();
-            const right=new THREE.Vector3(1,0,0);
-            right.applyQuaternion(camera.quaternion);
-            right.y=0;
-            right.normalize();
-            camera.position.add(forward.multiplyScalar(velocity.z*delta));
-            camera.position.add(right.multiplyScalar(velocity.x*delta));
-            if(camera.position.y<PLAYER_HEIGHT) camera.position.y=PLAYER_HEIGHT;
-        }
-        prevTime=time;
-        renderer.render(scene,camera);
+        velocity.x-=velocity.x*10*delta;
+        velocity.z-=velocity.z*10*delta;
+        direction.z=Number(moveBackward)-Number(moveForward);
+        direction.x=Number(moveLeft)-Number(moveRight);
+        direction.normalize();
+        if(moveForward||moveBackward)velocity.z-=direction.z*MOVE_SPEED*delta;
+        if(moveLeft||moveRight)velocity.x-=direction.x*MOVE_SPEED*delta;
+        const forward=new THREE.Vector3(0,0,-1);
+        forward.applyQuaternion(camera.quaternion);
+        forward.y=0;
+        forward.normalize();
+        const right=new THREE.Vector3(1,0,0);
+        right.applyQuaternion(camera.quaternion);
+        right.y=0;
+        right.normalize();
+        camera.position.add(forward.multiplyScalar(velocity.z*delta));
+        camera.position.add(right.multiplyScalar(velocity.x*delta));
+        if(camera.position.y<PLAYER_HEIGHT) camera.position.y=PLAYER_HEIGHT;
     }
+    prevTime=time;
+    renderer.render(scene,camera);
+}
 
-    init();
-    </script>
+init();
+</script>
 </body>
 </html>

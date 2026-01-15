@@ -133,12 +133,52 @@
 
         
 let vrPendingMemoPosition = null;  // ← この行を追加
+        let romajiBuffer = '';
+        const ROMAJI_TABLE = {
+  a:'あ', i:'い', u:'う', e:'え', o:'お',
+  ka:'か', ki:'き', ku:'く', ke:'け', ko:'こ',
+  sa:'さ', si:'し', shi:'し', su:'す', se:'せ', so:'そ',
+  ta:'た', ti:'ち', chi:'ち', tu:'つ', tsu:'つ', te:'て', to:'と',
+  na:'な', ni:'に', nu:'ぬ', ne:'ね', no:'の',
+  ha:'は', hi:'ひ', hu:'ふ', fu:'ふ', he:'へ', ho:'ほ',
+  ma:'ま', mi:'み', mu:'む', me:'め', mo:'も',
+  ya:'や', yu:'ゆ', yo:'よ',
+  ra:'ら', ri:'り', ru:'る', re:'れ', ro:'ろ',
+  wa:'わ', wo:'を',
+
+  ga:'が', gi:'ぎ', gu:'ぐ', ge:'げ', go:'ご',
+  za:'ざ', zi:'じ', ji:'じ', zu:'ず', ze:'ぜ', zo:'ぞ',
+  da:'だ', di:'ぢ', du:'づ', de:'で', do:'ど',
+  ba:'ば', bi:'び', bu:'ぶ', be:'べ', bo:'ぼ',
+  pa:'ぱ', pi:'ぴ', pu:'ぷ', pe:'ぺ', po:'ぽ',
+
+  kya:'きゃ', kyu:'きゅ', kyo:'きょ',
+  sha:'しゃ', shu:'しゅ', sho:'しょ',
+  cha:'ちゃ', chu:'ちゅ', cho:'ちょ',
+  nya:'にゃ', nyu:'にゅ', nyo:'にょ',
+  hya:'ひゃ', hyu:'ひゅ', hyo:'ひょ',
+  mya:'みゃ', myu:'みゅ', myo:'みょ',
+  rya:'りゃ', ryu:'りゅ', ryo:'りょ',
+  gya:'ぎゃ', gyu:'ぎゅ', gyo:'ぎょ',
+  bya:'びゃ', byu:'びゅ', byo:'びょ',
+  pya:'ぴゃ', pyu:'ぴゅ', pyo:'ぴょ',
+
+  la:'ぁ', li:'ぃ', lu:'ぅ', le:'ぇ', lo:'ぉ',
+  xa:'ぁ', xi:'ぃ', xu:'ぅ', xe:'ぇ', xo:'ぉ',
+  lya:'ゃ', lyu:'ゅ', lyo:'ょ',
+  xya:'ゃ', xyu:'ゅ', xyo:'ょ',
+
+  n:'ん',
+  '-':'ー'
+};
+
+
 let vrKeyboardInput = '';
 let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_5';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_6';
 
     function loadFBX(buf) {
         try {
@@ -1139,7 +1179,8 @@ function updateVRKeyboard() {
     ctx.fillStyle = '#fff';
     ctx.font = '28px Arial';
     ctx.textAlign = 'left';
-    const displayText = vrKeyboardInput || 'ここに入力...';
+   const displayText = vrKeyboardInput + romajiBuffer;
+
     ctx.fillText(displayText.substring(Math.max(0, displayText.length - 30)), 70, 120);
     
     bgMesh.material.map.needsUpdate = true;
@@ -1153,28 +1194,58 @@ function closeVRKeyboard() {
     vrKeyboardMode = false;
     vrKeyboardInput = '';
 }
+function processRomaji(char) {
+  romajiBuffer += char;
 
-function handleVRKeyboardInput(keyName) {
-    if(keyName === '削除') {
-        vrKeyboardInput = vrKeyboardInput.slice(0, -1);
-    } else if(keyName === 'スペース') {
-        vrKeyboardInput += ' ';
-    }  else if(keyName === '完了') {
-    if(vrKeyboardInput.trim() && vrPendingMemoPosition) {
-        const rightController = controllers[1];
-        const controllerWorldPos = new THREE.Vector3();
-        rightController.getWorldPosition(controllerWorldPos);
-        
-        createMemo(vrPendingMemoPosition, vrKeyboardInput, controllerWorldPos);
-        document.getElementById('status').textContent = 'メモを作成しました';
+  if (romajiBuffer.length >= 2) {
+    const last2 = romajiBuffer.slice(-2);
+    if (last2[0] === last2[1] && /[bcdfghjklmnpqrstvwxyz]/.test(last2[0])) {
+      vrKeyboardInput += 'っ';
+      romajiBuffer = romajiBuffer.slice(-1);
     }
+  }
+
+  for (let len = 3; len > 0; len--) {
+    const part = romajiBuffer.slice(-len);
+    if (ROMAJI_TABLE[part]) {
+      vrKeyboardInput += ROMAJI_TABLE[part];
+      romajiBuffer = '';
+      break;
+    }
+  }
+}
+
+function handleVRKeyboardInput(key) {
+
+  if(key === '削除'){
+    if(romajiBuffer.length){
+      romajiBuffer = romajiBuffer.slice(0, -1);
+    } else {
+      vrKeyboardInput = vrKeyboardInput.slice(0, -1);
+    }
+    return updateVRKeyboard();
+  }
+
+  if(key === 'スペース'){
+    vrKeyboardInput += ' ';
+    return updateVRKeyboard();
+  }
+
+  if(key === '完了'){
+    if(vrKeyboardInput.trim() && vrPendingMemoPosition){
+      const pos = vrPendingMemoPosition.clone();
+      createMemo(pos, vrKeyboardInput);
+    }
+    romajiBuffer = '';
     vrPendingMemoPosition = null;
     closeVRKeyboard();
-    } else {
-        vrKeyboardInput += keyName;
-    }
-    updateVRKeyboard();
+    return;
+  }
+
+  processRomaji(key.toLowerCase());
+  updateVRKeyboard();
 }
+
 function startEditMemo(memo) {
     if(isRecording) {
         try {

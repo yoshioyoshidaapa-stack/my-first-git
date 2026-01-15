@@ -175,10 +175,11 @@ let vrPendingMemoPosition = null;  // ← この行を追加
 
 let vrKeyboardInput = '';
 let vrKeyboardMode = false;
+        let vrKeyboardPanel = null;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_15';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_16';
 
     function loadFBX(buf) {
         try {
@@ -567,7 +568,9 @@ let vrKeyboardMode = false;
             pos=hit.point.clone().add(offset.multiplyScalar(0.1));
         } else {
             
-            camera.getWorldDirection(dir);
+            const dir = new THREE.Vector3();
+camera.getWorldDirection(dir);
+
             pos=camera.position.clone().add(dir.multiplyScalar(3));
         }
         pendingMemoPosition=pos;
@@ -814,7 +817,8 @@ function toggleVoiceInput() {
         return;
     }
     const dir=new THREE.Vector3();
-    camera.getWorldDirection(dir);
+    const dir = new THREE.Vector3();
+camera.getWorldDirection(dir);
     const pos=camera.position.clone().add(dir.multiplyScalar(3));
     startVoiceInputForMemo(pos);
 }

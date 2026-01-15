@@ -179,7 +179,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_17';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_14';
 
     function loadFBX(buf) {
         try {
@@ -992,47 +992,11 @@ function handleVRControllers(delta) {
             }
             btn1WasPressed=isBtn1Pressed;
 
-            if(inputSource.handedness==='right' || inputSource.handedness==='left') {
+            const triggerBtn=gamepad.buttons[0];
+            const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
-    const isRight = inputSource.handedness === 'right';
-    const triggerBtn = gamepad.buttons[0];
-    const isTriggerPressed = triggerBtn && triggerBtn.pressed;
-    let triggerState = isRight ? rightTriggerPressed : leftTriggerPressed;
-
-    if(isTriggerPressed && !triggerState) {
-
-        if(isRight) rightTriggerPressed = true;
-        else leftTriggerPressed = true;
-
-        // ====== ここから既存のトリガー処理をそのまま ======
-
-        if(vrKeyboardMode) {
-            // レイキャスト & handleVRKeyboardInput(...) の処理
-            // （あなたのコードをそのまま移植）
-        }
-        else if(hoveredMemo) {
-            vrKeyboardInput = hoveredMemo.text;
-            editingMemo = hoveredMemo;
-            createVRKeyboard();
-        }
-        else {
-            const controller = isRight ? controllers[1] : controllers[0];
-            const controllerWorldPos = new THREE.Vector3();
-            const controllerWorldQuat = new THREE.Quaternion();
-            controller.getWorldPosition(controllerWorldPos);
-            controller.getWorldQuaternion(controllerWorldQuat);
-
-            const direction = new THREE.Vector3(0,0,-1).applyQuaternion(controllerWorldQuat);
-            vrPendingMemoPosition = controllerWorldPos.clone().add(direction.multiplyScalar(2));
-            createVRKeyboard();
-        }
-    }
-    else if(!isTriggerPressed && triggerState) {
-        if(isRight) rightTriggerPressed = false;
-        else leftTriggerPressed = false;
-    }
-}
-
+            if(isTriggerPressed&&!rightTriggerPressed) {
+    rightTriggerPressed=true;
     debugInfo.push(`  Trigger DOWN!`);
     
     if(vrKeyboardMode) {

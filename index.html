@@ -178,7 +178,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_6';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_7';
 
     function loadFBX(buf) {
         try {
@@ -1010,12 +1010,11 @@ function handleVRControllers(delta) {
                     
                     // キー配置に基づいて検出
                     const keys = [
-                        ['あ','い','う','え','お','か','き','く','け','こ'],
-                        ['さ','し','す','せ','そ','た','ち','つ','て','と'],
-                        ['な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ'],
-                        ['ま','み','む','め','も','や','ゆ','よ','わ','を'],
-                        ['ん','。','、','削除','スペース','完了']
-                    ];
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['-','。','、','削除','スペース','完了']
+];
                     
                     if(y > 170) {
                         const relY = y - 170;

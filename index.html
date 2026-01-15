@@ -808,20 +808,22 @@ function startVoiceInputForMemo(pos) {
 }
 
 function toggleVoiceInput() {
-    if(!recognition)return;
+    if(!recognition) return;
+
     if(isRecording) {
-        try{ recognition.stop(); }catch(e){}
-        isRecording=false;
+        try { recognition.stop(); } catch(e) {}
+        isRecording = false;
         document.getElementById('voiceButton').classList.remove('recording');
-        document.getElementById('voiceButton').textContent='🎤 音声入力';
+        document.getElementById('voiceButton').textContent = '🎤 音声入力';
         return;
     }
-    const dir=new THREE.Vector3();
-   
-camera.getWorldDirection(dir);
-    const pos=camera.position.clone().add(dir.multiplyScalar(3));
+
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const pos = camera.position.clone().add(dir.multiplyScalar(3));
     startVoiceInputForMemo(pos);
 }
+
 
 window.deleteMemo=deleteMemo;
 

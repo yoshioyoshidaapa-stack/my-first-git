@@ -169,7 +169,7 @@ let vrPendingMemoPosition = null;  // ← この行を追加
   lya:'ゃ', lyu:'ゅ', lyo:'ょ',
   xya:'ゃ', xyu:'ゅ', xyo:'ょ',
 
-  n:'ん',
+  
   '-':'ー'
 };
 
@@ -179,7 +179,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/16_1';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/16_2';
 
     function loadFBX(buf) {
         try {
@@ -1205,14 +1205,23 @@ function closeVRKeyboard() {
 function processRomaji(char) {
   romajiBuffer += char;
 
+  // 'nn' は「ん」に変換
+  if (romajiBuffer === 'nn') {
+    vrKeyboardInput += 'ん';
+    romajiBuffer = '';
+    return;
+  }
+
+  // 促音変換（っ）- nは除外
   if (romajiBuffer.length >= 2) {
     const last2 = romajiBuffer.slice(-2);
-    if (last2[0] === last2[1] && /[bcdfghjklmnpqrstvwxyz]/.test(last2[0])) {
+    if (last2[0] === last2[1] && /[bcdfghjklmpqrstvwxyz]/.test(last2[0]) && last2[0] !== 'n') {
       vrKeyboardInput += 'っ';
       romajiBuffer = romajiBuffer.slice(-1);
     }
   }
 
+  // ローマ字テーブルから変換
   for (let len = 3; len > 0; len--) {
     const part = romajiBuffer.slice(-len);
     if (ROMAJI_TABLE[part]) {
@@ -1224,6 +1233,8 @@ function processRomaji(char) {
 }
 
 function handleVRKeyboardInput(key) {
+
+  function handleVRKeyboardInput(key) {
 
   if(key === '削除'){
     if(romajiBuffer.length){
@@ -1248,6 +1259,12 @@ function handleVRKeyboardInput(key) {
     vrPendingMemoPosition = null;
     closeVRKeyboard();
     return;
+  }
+
+  // 数字や記号はそのまま入力
+  if(/[0-9。、ー\-]/.test(key)){
+    vrKeyboardInput += key;
+    return updateVRKeyboard();
   }
 
   processRomaji(key.toLowerCase());

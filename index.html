@@ -179,7 +179,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_14';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/16_1';
 
     function loadFBX(buf) {
         try {
@@ -1017,10 +1017,10 @@ function handleVRControllers(delta) {
                     const x = uv.x * 1024;
                     const y = (1 - uv.y) * 512;
                     
-                    // キー配置に基づいて検出
-                    const keys = [
+              const keys = [
+    ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
+    ['a','s','d','f','g','h','j','k','l','n'],
     ['z','x','c','v','b','n','m'],
     ['-','。','、','削除','スペース','完了']
 ];
@@ -1113,8 +1113,9 @@ function createVRKeyboard() {
     
     // キーボードキー
     const keys = [
+    ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
+    ['a','s','d','f','g','h','j','k','l','n'],
     ['z','x','c','v','b','n','m'],
     ['-','。','、','削除','スペース','完了']
 ];

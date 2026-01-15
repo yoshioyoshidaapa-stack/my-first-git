@@ -128,10 +128,13 @@
     let hoveredMemo = null;
     let btn1WasPressed = false;
     let pendingDeleteMemo = null;
+        let vrKeyboardPanel = null;
+let vrKeyboardInput = '';
+let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_4';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_5';
 
     function loadFBX(buf) {
         try {
@@ -940,44 +943,73 @@ function handleVRControllers(delta) {
             const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
             if(isTriggerPressed&&!rightTriggerPressed) {
-                rightTriggerPressed=true;
-                debugInfo.push(`  Trigger DOWN!`);
-                
-                if(hoveredMemo) {
-                    debugInfo.push(`  >>> EDITING MEMO #${hoveredMemo.id} <<<`);
-                    startEditMemo(hoveredMemo);
-                } else {
-                    debugInfo.push(`  >>> CREATING NEW MEMO <<<`);
-                    const rightController = controllers[1];
-                    if(rightController) {
-                        const controllerWorldPos = new THREE.Vector3();
-                        rightController.getWorldPosition(controllerWorldPos);
-                        const direction = new THREE.Vector3(0, 0, -1);
-                        const controllerWorldQuat = new THREE.Quaternion();
-                        rightController.getWorldQuaternion(controllerWorldQuat);
-                        direction.applyQuaternion(controllerWorldQuat);
-                        const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
-                        
-                        const tempMemoText = "録音中...";
-                        createMemo(position, tempMemoText, controllerWorldPos);
-                        
-                        const newMemo = memos[memos.length - 1];
-                        startEditMemo(newMemo);
-                    }
-                }
-            } else if(!isTriggerPressed&&rightTriggerPressed) {
-                rightTriggerPressed=false;
-                debugInfo.push(`  Trigger UP!`);
-                
-                if(recognition && editingMemo) {
-                    try {
-                        recognition.stop();
-                        debugInfo.push(`  >>> STOPPING VOICE INPUT <<<`);
-                    } catch(e) {
-                        console.error('Recognition stop error:', e);
+    rightTriggerPressed=true;
+    debugInfo.push(`  Trigger DOWN!`);
+    
+    if(vrKeyboardMode) {
+        // キーボードモード時：レイキャストでキーを検出
+        try {
+            const raycaster = new THREE.Raycaster();
+            const controllerWorldPos = new THREE.Vector3();
+            const controllerWorldQuat = new THREE.Quaternion();
+            controllers[1].getWorldPosition(controllerWorldPos);
+            controllers[1].getWorldQuaternion(controllerWorldQuat);
+            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
+            raycaster.set(controllerWorldPos, direction);
+            
+            if(vrKeyboardPanel) {
+                const hits = raycaster.intersectObject(vrKeyboardPanel.children[0], true);
+                if(hits.length > 0) {
+                    const uv = hits[0].uv;
+                    const x = uv.x * 1024;
+                    const y = (1 - uv.y) * 512;
+                    
+                    // キー配置に基づいて検出
+                    const keys = [
+                        ['あ','い','う','え','お','か','き','く','け','こ'],
+                        ['さ','し','す','せ','そ','た','ち','つ','て','と'],
+                        ['な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ'],
+                        ['ま','み','む','め','も','や','ゆ','よ','わ','を'],
+                        ['ん','。','、','削除','スペース','完了']
+                    ];
+                    
+                    if(y > 170) {
+                        const relY = y - 170;
+                        const rowIdx = Math.floor(relY / 60);
+                        if(rowIdx >= 0 && rowIdx < keys.length) {
+                            const row = keys[rowIdx];
+                            const rowWidth = row.length * 90 - 10;
+                            const startX = (1024 - rowWidth) / 2;
+                            const relX = x - startX;
+                            const colIdx = Math.floor(relX / 90);
+                            if(colIdx >= 0 && colIdx < row.length) {
+                                handleVRKeyboardInput(row[colIdx]);
+                                debugInfo.push(`  Key pressed: ${row[colIdx]}`);
+                            }
+                        }
                     }
                 }
             }
+        } catch(e) {
+            console.error('Keyboard input error', e);
+        }
+    } else if(hoveredMemo) {
+        // メモ編集（既存のメモ）
+        debugInfo.push(`  >>> EDITING MEMO #${hoveredMemo.id} <<<`);
+        // 既存メモの編集はキーボードで
+        vrKeyboardInput = hoveredMemo.text;
+        editingMemo = hoveredMemo;
+        createVRKeyboard();
+    } else {
+        // 新規メモ作成
+        debugInfo.push(`  >>> CREATING NEW MEMO <<<`);
+        createVRKeyboard();
+    }
+}
+           } else if(!isTriggerPressed&&rightTriggerPressed) {
+    rightTriggerPressed=false;
+    debugInfo.push(`  Trigger UP!`);
+}
         }
         debugInfo.push('');
     }
@@ -985,7 +1017,157 @@ function handleVRControllers(delta) {
     debugInfo.push(`CamRig: ${cameraRig.position.x.toFixed(1)}, ${cameraRig.position.y.toFixed(1)}, ${cameraRig.position.z.toFixed(1)}`);
     updateVRDebugPanel(debugInfo.join('\n'));
 }
+function createVRKeyboard() {
+    const keyboardGroup = new THREE.Group();
+    keyboardGroup.name = 'vrKeyboard';
+    
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = 1024;
+    bgCanvas.height = 512;
+    const ctx = bgCanvas.getContext('2d');
+    
+    // 背景
+    ctx.fillStyle = 'rgba(0,0,0,0.95)';
+    ctx.fillRect(0, 0, 1024, 512);
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(0, 0, 1024, 512);
+    
+    // タイトル
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('メモ入力', 512, 50);
+    
+    // 入力欄
+    ctx.fillStyle = '#333';
+    ctx.fillRect(50, 80, 924, 60);
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(50, 80, 924, 60);
+    
+    // 入力テキスト表示
+    ctx.fillStyle = '#fff';
+    ctx.font = '28px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(vrKeyboardInput || 'ここに入力...', 70, 120);
+    
+    // キーボードキー
+    const keys = [
+        ['あ','い','う','え','お','か','き','く','け','こ'],
+        ['さ','し','す','せ','そ','た','ち','つ','て','と'],
+        ['な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ'],
+        ['ま','み','む','め','も','や','ゆ','よ','わ','を'],
+        ['ん','。','、','削除','スペース','完了']
+    ];
+    
+    const keyWidth = 80;
+    const keyHeight = 50;
+    const startY = 170;
+    const gap = 10;
+    
+    keys.forEach((row, rowIdx) => {
+        const rowWidth = row.length * (keyWidth + gap) - gap;
+        const startX = (1024 - rowWidth) / 2;
+        
+        row.forEach((key, colIdx) => {
+            const x = startX + colIdx * (keyWidth + gap);
+            const y = startY + rowIdx * (keyHeight + gap);
+            const w = key === 'スペース' ? keyWidth * 2 : keyWidth;
+            
+            // キー背景
+            ctx.fillStyle = key === '完了' ? '#4CAF50' : key === '削除' ? '#f44336' : '#555';
+            ctx.fillRect(x, y, w, keyHeight);
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, keyHeight);
+            
+            // キーテキスト
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(key, x + w/2, y + keyHeight/2);
+        });
+    });
+    
+    const bgTex = new THREE.CanvasTexture(bgCanvas);
+    const bgMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.5, 1.25),
+        new THREE.MeshBasicMaterial({ map: bgTex, transparent: true, side: THREE.DoubleSide })
+    );
+    keyboardGroup.add(bgMesh);
+    
+    const cameraWorldPos = new THREE.Vector3();
+    camera.getWorldPosition(cameraWorldPos);
+    const cameraWorldDir = new THREE.Vector3();
+    camera.getWorldDirection(cameraWorldDir);
+    keyboardGroup.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
+    keyboardGroup.lookAt(cameraWorldPos);
+    keyboardGroup.renderOrder = 10000;
+    
+    scene.add(keyboardGroup);
+    vrKeyboardPanel = keyboardGroup;
+    vrKeyboardMode = true;
+}
 
+function updateVRKeyboard() {
+    if(!vrKeyboardPanel) return;
+    
+    const bgMesh = vrKeyboardPanel.children[0];
+    const bgCanvas = bgMesh.material.map.image;
+    const ctx = bgCanvas.getContext('2d');
+    
+    // 入力欄のみ再描画
+    ctx.fillStyle = '#333';
+    ctx.fillRect(50, 80, 924, 60);
+    ctx.strokeStyle = '#00ff00';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(50, 80, 924, 60);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '28px Arial';
+    ctx.textAlign = 'left';
+    const displayText = vrKeyboardInput || 'ここに入力...';
+    ctx.fillText(displayText.substring(Math.max(0, displayText.length - 30)), 70, 120);
+    
+    bgMesh.material.map.needsUpdate = true;
+}
+
+function closeVRKeyboard() {
+    if(vrKeyboardPanel) {
+        scene.remove(vrKeyboardPanel);
+        vrKeyboardPanel = null;
+    }
+    vrKeyboardMode = false;
+    vrKeyboardInput = '';
+}
+
+function handleVRKeyboardInput(keyName) {
+    if(keyName === '削除') {
+        vrKeyboardInput = vrKeyboardInput.slice(0, -1);
+    } else if(keyName === 'スペース') {
+        vrKeyboardInput += ' ';
+    } else if(keyName === '完了') {
+        if(vrKeyboardInput.trim()) {
+            const rightController = controllers[1];
+            const controllerWorldPos = new THREE.Vector3();
+            rightController.getWorldPosition(controllerWorldPos);
+            const direction = new THREE.Vector3(0, 0, -1);
+            const controllerWorldQuat = new THREE.Quaternion();
+            rightController.getWorldQuaternion(controllerWorldQuat);
+            direction.applyQuaternion(controllerWorldQuat);
+            const position = controllerWorldPos.clone().add(direction.multiplyScalar(2));
+            
+            createMemo(position, vrKeyboardInput, controllerWorldPos);
+            document.getElementById('status').textContent = 'メモを作成しました';
+        }
+        closeVRKeyboard();
+    } else {
+        vrKeyboardInput += keyName;
+    }
+    updateVRKeyboard();
+}
 function startEditMemo(memo) {
     if(isRecording) {
         try {

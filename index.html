@@ -178,7 +178,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_12';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_13';
 
     function loadFBX(buf) {
         try {
@@ -566,7 +566,7 @@ let vrKeyboardMode = false;
             }
             pos=hit.point.clone().add(offset.multiplyScalar(0.1));
         } else {
-            const dir=new THREE.Vector3();
+            
             camera.getWorldDirection(dir);
             pos=camera.position.clone().add(dir.multiplyScalar(3));
         }
@@ -670,10 +670,10 @@ function createMemo(pos, txt) {
 // 作成時のカメラ向きでメモを正面にする
 // 作成時のカメラ方向を向かせる（この1回だけ）
 // 置いた瞬間のカメラ向きで正像にする（以後は固定）
-const target = camera.position.clone();
-target.y = mesh.position.y;   // 上下の傾きを除去して読みやすく
-mesh.lookAt(target);
-mesh.rotateY(Math.PI);        // PlaneGeometry の表向き補正
+
+
+
+
 
 
 
@@ -693,14 +693,7 @@ function deleteMemo(id) {
 function updateMemoList() {
     const list=document.getElementById('memoList');
     list.innerHTML='';
-    memos.forEach(m=>{
-        const item=document.createElement('div');
-        item.className='memo-item';
-        item.innerHTML=`<div><strong>#${m.id+1}</strong>: ${m.text.replace(/\n/g,'<br>')}</div><button type="button">削除</button>`;
-        const btn = item.querySelector('button');
-        btn.addEventListener('click',()=>deleteMemo(m.id));
-        list.appendChild(item);
-    });
+   
 }
 
 function createMemoSprite(pos, txt) {
@@ -751,7 +744,7 @@ function createMemoSprite(pos, txt) {
     });
     const mesh = new THREE.Mesh(geom, mat);
     mesh.position.copy(pos);
-    mesh.lookAt(camera.position);
+    
     
     mesh.renderOrder = 9999;
     mesh.userData = mesh.userData || {};

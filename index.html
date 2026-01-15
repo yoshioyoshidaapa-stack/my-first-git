@@ -178,7 +178,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_10';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_11';
 
     function loadFBX(buf) {
         try {
@@ -1592,11 +1592,21 @@ function animate() {
     }
     // すべてのメモを常にカメラへ向ける
 memos.forEach(m => {
-    if(m.sprite) {
-        m.sprite.lookAt(camera.position.clone().multiplyScalar(2).sub(m.sprite.position));
+    if(!m.sprite) return;
 
-    }
+    const v = new THREE.Vector3();
+    v.subVectors(camera.position, m.sprite.position).normalize();
+
+    // 正しい向きへ
+    m.sprite.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 0, -1), // Spriteの表
+        v
+    );
+
+    // 90度補正（Y軸回転）
+    m.sprite.rotateY(Math.PI);
 });
+
 
     prevTime=time;
     renderer.render(scene,camera);

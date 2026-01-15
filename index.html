@@ -178,7 +178,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_9';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_10';
 
     function loadFBX(buf) {
         try {
@@ -1593,7 +1593,8 @@ function animate() {
     // すべてのメモを常にカメラへ向ける
 memos.forEach(m => {
     if(m.sprite) {
-        m.sprite.lookAt(camera.position);
+        m.sprite.lookAt(camera.position.clone().multiplyScalar(2).sub(m.sprite.position));
+
     }
 });
 

@@ -178,7 +178,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_11';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/15_12';
 
     function loadFBX(buf) {
         try {
@@ -601,7 +601,7 @@ function cancelMemoInput() {
     pendingMemoPosition=null;
 }
 
-function createMemo(pos, txt, lookAtPos) {
+function createMemo(pos, txt) {
     const id = memoCounter++;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -652,9 +652,7 @@ function createMemo(pos, txt, lookAtPos) {
     const mesh = new THREE.Mesh(geom, mat);
     mesh.position.copy(pos);
     
-    if(lookAtPos) {
-        mesh.lookAt(lookAtPos);
-    }
+   
     
     mesh.renderOrder = 9999;
     mesh.name = `memo_${id}`;
@@ -668,6 +666,18 @@ function createMemo(pos, txt, lookAtPos) {
 
     memos.push({id, text: txt, position: pos.clone(), sprite: mesh});
     updateMemoList();
+
+// 作成時のカメラ向きでメモを正面にする
+// 作成時のカメラ方向を向かせる（この1回だけ）
+// 置いた瞬間のカメラ向きで正像にする（以後は固定）
+const target = camera.position.clone();
+target.y = mesh.position.y;   // 上下の傾きを除去して読みやすく
+mesh.lookAt(target);
+mesh.rotateY(Math.PI);        // PlaneGeometry の表向き補正
+
+
+
+    
 }
 
 function deleteMemo(id) {
@@ -1590,22 +1600,7 @@ function animate() {
         camera.position.add(right.multiplyScalar(velocity.x*delta));
         if(camera.position.y<PLAYER_HEIGHT) camera.position.y=PLAYER_HEIGHT;
     }
-    // すべてのメモを常にカメラへ向ける
-memos.forEach(m => {
-    if(!m.sprite) return;
-
-    const v = new THREE.Vector3();
-    v.subVectors(camera.position, m.sprite.position).normalize();
-
-    // 正しい向きへ
-    m.sprite.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 0, -1), // Spriteの表
-        v
-    );
-
-    // 90度補正（Y軸回転）
-    m.sprite.rotateY(Math.PI);
-});
+   
 
 
     prevTime=time;

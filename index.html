@@ -123,6 +123,7 @@
     let vrDebugText=null, vrDebugCanvas=null;
     let xButtonCooldown=false, xButtonPressTime=0;
     let rightTriggerPressed=false, rightGripPressed=false;
+        let leftTriggerPressed=false;
     let vrZoomLevel=0;
     let rightTriggerPressTime=0;
     let editingMemo = null;
@@ -179,7 +180,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/16_3';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/16_4';
 
     function loadFBX(buf) {
         try {
@@ -860,9 +861,11 @@ function handleVRControllers(delta) {
         }
         debugInfo.push(`  btns: ${pressedButtons.length>0?pressedButtons.join(','):'none'}`);
 
-        if(inputSource.handedness==='left') {
-            let moveX=0,moveZ=0;
-            if(Math.abs(gamepad.axes[0])>0.05)moveX=gamepad.axes[0];
+       if(inputSource.handedness==='left') {
+    // VRキーボード使用中は移動を無効化
+    if(!vrKeyboardMode) {
+        let moveX=0,moveZ=0;
+        if(Math.abs(gamepad.axes[0])>0.05)moveX=gamepad.axes[0];
             if(Math.abs(gamepad.axes[1])>0.05)moveZ=-gamepad.axes[1];
             if(Math.abs(gamepad.axes[2])>0.05)moveX=gamepad.axes[2];
             if(Math.abs(gamepad.axes[3])>0.05)moveZ=-gamepad.axes[3];
@@ -922,7 +925,66 @@ function handleVRControllers(delta) {
                     }
                 }
             }
+    }  // VRキーボードモードのif文を閉じる
+    
+    // VRキーボードモード時は左コントローラーもキー入力に使用
+    if(vrKeyboardMode) {
+        const triggerBtn=gamepad.buttons[0];
+        const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
+        
+        if(isTriggerPressed&&!leftTriggerPressed) {
+            leftTriggerPressed=true;
+            debugInfo.push(`  Left Trigger DOWN!`);
+            
+            try {
+                const raycaster = new THREE.Raycaster();
+                const controllerWorldPos = new THREE.Vector3();
+                const controllerWorldQuat = new THREE.Quaternion();
+                controllers[0].getWorldPosition(controllerWorldPos);
+                controllers[0].getWorldQuaternion(controllerWorldQuat);
+                const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(controllerWorldQuat);
+                raycaster.set(controllerWorldPos, direction);
+                
+                if(vrKeyboardPanel) {
+                    const hits = raycaster.intersectObject(vrKeyboardPanel.children[0], true);
+                    if(hits.length > 0) {
+                        const uv = hits[0].uv;
+                        const x = uv.x * 1024;
+                        const y = (1 - uv.y) * 512;
+                        
+                        const keys = [
+                            ['1','2','3','4','5','6','7','8','9','0'],
+                            ['q','w','e','r','t','y','u','i','o','p'],
+                            ['a','s','d','f','g','h','j','k','l','n'],
+                            ['z','x','c','v','b','n','m'],
+                            ['-','。','、','削除','スペース','完了']
+                        ];
+                        
+                        if(y > 170) {
+                            const relY = y - 170;
+                            const rowIdx = Math.floor(relY / 60);
+                            if(rowIdx >= 0 && rowIdx < keys.length) {
+                                const row = keys[rowIdx];
+                                const rowWidth = row.length * 90 - 10;
+                                const startX = (1024 - rowWidth) / 2;
+                                const relX = x - startX;
+                                const colIdx = Math.floor(relX / 90);
+                                if(colIdx >= 0 && colIdx < row.length) {
+                                    handleVRKeyboardInput(row[colIdx]);
+                                    debugInfo.push(`  Left Key: ${row[colIdx]}`);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error('Left keyboard input error', e);
+            }
+        } else if(!isTriggerPressed&&leftTriggerPressed) {
+            leftTriggerPressed=false;
         }
+    }
+}
 
         if(inputSource.handedness==='right') {
             const axes=gamepad.axes;

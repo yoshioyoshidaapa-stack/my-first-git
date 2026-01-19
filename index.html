@@ -536,14 +536,15 @@ document.getElementById('loadButton').addEventListener('click',loadScene);
 
         function saveScene() {
     const saveData = {
-        memos: memos.map(m => ({
-            id: m.id,
-            text: m.text,
-            position: {x: m.position.x, y: m.position.y, z: m.position.z}
-        })),
-        memoCounter: memoCounter,
-        model: null
-    };
+    memos: memos.map(m => ({
+        id: m.id,
+        text: m.text,
+        position: {x: m.position.x, y: m.position.y, z: m.position.z},
+        rotation: {x: m.sprite.rotation.x, y: m.sprite.rotation.y, z: m.sprite.rotation.z}
+    })),
+    memoCounter: memoCounter,
+    model: null
+};
     
     const model = scene.getObjectByName('loadedModel');
     if(model) {
@@ -672,8 +673,11 @@ function loadScene() {
                             depthWrite: false
                         });
                         const mesh = new THREE.Mesh(geom, mat);
-                        mesh.position.copy(pos);
-                        mesh.renderOrder = 9999;
+mesh.position.copy(pos);
+if(mData.rotation) {
+    mesh.rotation.set(mData.rotation.x, mData.rotation.y, mData.rotation.z);
+}
+mesh.renderOrder = 9999;
                         mesh.name = `memo_${id}`;
                         mesh.userData = mesh.userData || {};
                         mesh.userData.text = text;

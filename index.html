@@ -185,7 +185,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_4';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_5';
 
     function loadFBX(buf) {
         try {
@@ -1589,8 +1589,9 @@ if(key === '完了'){
     vrKeyboardInput += key;
     updateVRKeyboard();
   } else {
-    processRomaji(key.toLowerCase());
+    processRomaji(key.toLowerCase();
     updateVRKeyboard();
+  } 
   } 
 
 function startEditMemo(memo) {

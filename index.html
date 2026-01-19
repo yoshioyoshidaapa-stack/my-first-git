@@ -185,7 +185,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_3';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_4';
 
     function loadFBX(buf) {
         try {
@@ -1365,6 +1365,16 @@ const keys = vrKeyboardLang === 'kana' ? [
     updateVRDebugPanel(debugInfo.join('\n'));
 }
 function createVRKeyboard() {
+    // 既存のキーボードの位置を保存
+    let savedPosition = null;
+    let savedRotation = null;
+    if(vrKeyboardPanel) {
+        savedPosition = vrKeyboardPanel.position.clone();
+        savedRotation = vrKeyboardPanel.rotation.clone();
+        scene.remove(vrKeyboardPanel);
+        vrKeyboardPanel = null;
+    }
+    
     const keyboardGroup = new THREE.Group();
     keyboardGroup.name = 'vrKeyboard';
     
@@ -1451,12 +1461,18 @@ function createVRKeyboard() {
     );
     keyboardGroup.add(bgMesh);
     
-    const cameraWorldPos = new THREE.Vector3();
-    camera.getWorldPosition(cameraWorldPos);
-    const cameraWorldDir = new THREE.Vector3();
-    camera.getWorldDirection(cameraWorldDir);
-    keyboardGroup.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
-    keyboardGroup.lookAt(cameraWorldPos);
+ // 保存された位置がある場合はそれを使用、なければカメラ前に配置
+    if(savedPosition && savedRotation) {
+        keyboardGroup.position.copy(savedPosition);
+        keyboardGroup.rotation.copy(savedRotation);
+    } else {
+        const cameraWorldPos = new THREE.Vector3();
+        camera.getWorldPosition(cameraWorldPos);
+        const cameraWorldDir = new THREE.Vector3();
+        camera.getWorldDirection(cameraWorldDir);
+        keyboardGroup.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
+        keyboardGroup.lookAt(cameraWorldPos);
+    }
     keyboardGroup.renderOrder = 10000;
     
     scene.add(keyboardGroup);

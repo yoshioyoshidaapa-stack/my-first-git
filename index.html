@@ -1141,8 +1141,8 @@ function handleVRControllers(delta) {
     }  // VRキーボードモードのif文を閉じる
     
     // VRキーボードモード時は左コントローラーもキー入力に使用
-    if(vrKeyboardMode) {
-        const triggerBtn=gamepad.buttons[0];
+    if(vrKeyboardMode && vrKeyboardPanel) {
+    const triggerBtn=gamepad.buttons[0];
         const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
         
         if(isTriggerPressed&&!leftTriggerPressed) {
@@ -1277,11 +1277,12 @@ const keys = vrKeyboardLang === 'kana' ? [
             const triggerBtn=gamepad.buttons[0];
             const isTriggerPressed=triggerBtn&&triggerBtn.pressed;
 
-            if(isTriggerPressed&&!rightTriggerPressed) {
+          if(isTriggerPressed&&!rightTriggerPressed) {
     rightTriggerPressed=true;
     debugInfo.push(`  Trigger DOWN!`);
     
-    if(vrKeyboardMode) {
+    if(vrKeyboardMode && vrKeyboardPanel) {
+       
         // キーボードモード時：レイキャストでキーを検出
         try {
             const raycaster = new THREE.Raycaster();

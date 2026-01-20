@@ -62,6 +62,9 @@
         <button id="resetButton" class="btn">カメラリセット</button>
         <button id="clearButton" class="btn">モデル削除</button>
 
+<button id="saveButton" class="btn" style="background: #2196F3; color: white;">セーブ</button>
+<button id="loadButton" class="btn" style="background: #9C27B0; color: white;">ロード</button>
+        
         <div id="scaleControls">
             <strong>モデルサイズ</strong><br>
             <span id="scaleValue">1.0x</span>
@@ -177,10 +180,12 @@ let vrPendingMemoPosition = null;  // ← この行を追加
 
 let vrKeyboardInput = '';
 let vrKeyboardMode = false;
+        let vrKeyboardLang = 'kana'; // 'kana' or 'alphabet'
+        
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/20_3';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_4';
 
     function loadFBX(buf) {
         try {
@@ -256,6 +261,8 @@ let vrKeyboardMode = false;
         document.getElementById('keyboardInputBtn').addEventListener('click',chooseKeyboardInput);
         document.getElementById('submitMemoBtn').addEventListener('click',submitMemo);
         document.getElementById('cancelMemoBtn').addEventListener('click',cancelMemoInput);
+        document.getElementById('saveButton').addEventListener('click',saveScene);
+document.getElementById('loadButton').addEventListener('click',loadScene);
         window.addEventListener('resize',onWindowResize);
         initSpeechRecognition();
         renderer.setAnimationLoop(animate);
@@ -528,6 +535,212 @@ let vrKeyboardMode = false;
         const m=scene.getObjectByName('loadedModel');
         if(m)scene.remove(m);
     }
+
+        function saveScene() {
+    const saveData = {
+    memos: memos.map(m => ({
+        id: m.id,
+        text: m.text,
+        position: {x: m.position.x, y: m.position.y, z: m.position.z},
+        rotation: {x: m.sprite.rotation.x, y: m.sprite.rotation.y, z: m.sprite.rotation.z}
+    })),
+    memoCounter: memoCounter,
+    model: null
+};
+    
+    const model = scene.getObjectByName('loadedModel');
+    if(model) {
+        saveData.model = {
+            position: {x: model.position.x, y: model.position.y, z: model.position.z},
+            rotation: {x: model.rotation.x, y: model.rotation.y, z: model.rotation.z},
+            scale: {x: model.scale.x, y: model.scale.y, z: model.scale.z}
+        };
+        
+        const fileInput = document.getElementById('fileInput');
+        if(fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                saveData.model.data = e.target.result;
+                saveData.model.name = file.name;
+                saveData.model.type = file.name.toLowerCase().split('.').pop();
+                
+                const json = JSON.stringify(saveData);
+                const blob = new Blob([json], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'vr-scene-save.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                document.getElementById('status').textContent = 'セーブ完了';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            const json = JSON.stringify(saveData);
+            const blob = new Blob([json], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'vr-scene-save.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            document.getElementById('status').textContent = 'セーブ完了（モデルなし）';
+        }
+    } else {
+        const json = JSON.stringify(saveData);
+        const blob = new Blob([json], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'vr-scene-save.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        document.getElementById('status').textContent = 'セーブ完了';
+    }
+}
+
+function loadScene() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = function(e) {
+        const file = e.target.files[0];
+        if(!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const saveData = JSON.parse(ev.target.result);
+                
+                // メモをクリア
+                memos.forEach(m => {
+                    if(m.sprite) scene.remove(m.sprite);
+                });
+                memos = [];
+                
+                // メモを復元
+                if(saveData.memos) {
+                    saveData.memos.forEach(mData => {
+                        const pos = new THREE.Vector3(mData.position.x, mData.position.y, mData.position.z);
+                        const id = mData.id;
+                        const text = mData.text;
+                        
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = 512;
+                        ctx.font = 'bold 32px Arial';
+                        const lines = [];
+                        text.split('\n').forEach(para=>{
+                            const words = para.split(' ');
+                            let line = '';
+                            words.forEach(word=>{
+                                const test = line + word + ' ';
+                                if(ctx.measureText(test).width > 472 && line !== '') {
+                                    lines.push(line.trim());
+                                    line = word + ' ';
+                                } else {
+                                    line = test;
+                                }
+                            });
+                            lines.push(line.trim());
+                        });
+                        canvas.height = (lines.length * 40) + 40;
+                        ctx.fillStyle = '#ffd93d';
+                        ctx.fillRect(0,0,canvas.width,canvas.height);
+                        ctx.fillStyle = '#000';
+                        ctx.font = 'bold 32px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        let y = 20;
+                        lines.forEach(line=>{
+                            ctx.fillText(line,256,y);
+                            y += 40;
+                        });
+
+                        const tex = new THREE.CanvasTexture(canvas);
+                        tex.minFilter = THREE.LinearFilter;
+                        const aspect = canvas.height / canvas.width;
+                        const baseWidth = 0.6;
+                        const baseHeight = baseWidth * aspect;
+                        const geom = new THREE.PlaneGeometry(baseWidth, baseHeight);
+                        const mat = new THREE.MeshBasicMaterial({
+                            map: tex,
+                            transparent: true,
+                            side: THREE.DoubleSide,
+                            depthTest: false,
+                            depthWrite: false
+                        });
+                        const mesh = new THREE.Mesh(geom, mat);
+mesh.position.copy(pos);
+if(mData.rotation) {
+    mesh.rotation.set(mData.rotation.x, mData.rotation.y, mData.rotation.z);
+}
+mesh.renderOrder = 9999;
+                        mesh.name = `memo_${id}`;
+                        mesh.userData = mesh.userData || {};
+                        mesh.userData.text = text;
+                        mesh.userData.aspect = aspect;
+                        mesh.userData.isMemo = true;
+                        scene.add(mesh);
+                        
+                        memos.push({id, text, position: pos.clone(), sprite: mesh});
+                    });
+                }
+                
+                memoCounter = saveData.memoCounter || memos.length;
+                updateMemoList();
+                
+                // モデルを復元
+                if(saveData.model && saveData.model.data) {
+                    document.getElementById('loading').style.display='block';
+                    
+                    const dataUrl = saveData.model.data;
+                    const base64 = dataUrl.split(',')[1];
+                    const binary = atob(base64);
+                    const array = new Uint8Array(binary.length);
+                    for(let i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    const buf = array.buffer;
+                    
+                    const ext = saveData.model.type;
+                    if(ext === 'glb' || ext === 'gltf') {
+                        loadGLTF(buf);
+                    } else if(ext === 'obj') {
+                        loadOBJ(buf);
+                    } else if(ext === 'stl') {
+                        loadSTL(buf);
+                    } else if(ext === 'fbx') {
+                        loadFBX(buf);
+                    }
+                    
+                    setTimeout(() => {
+                        const model = scene.getObjectByName('loadedModel');
+                        if(model) {
+                            model.position.set(saveData.model.position.x, saveData.model.position.y, saveData.model.position.z);
+                            model.rotation.set(saveData.model.rotation.x, saveData.model.rotation.y, saveData.model.rotation.z);
+                            model.scale.set(saveData.model.scale.x, saveData.model.scale.y, saveData.model.scale.z);
+                            
+                            document.getElementById('scaleSlider').value = saveData.model.scale.x;
+                            document.getElementById('scaleValue').textContent = `${saveData.model.scale.x.toFixed(1)}x`;
+                        }
+                    }, 500);
+                }
+                
+                document.getElementById('status').textContent = 'ロード完了';
+            } catch(err) {
+                console.error('Load error', err);
+                document.getElementById('status').textContent = 'ロードエラー: ' + err.message;
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
 
     function setScale(s) {
         const m=scene.getObjectByName('loadedModel');
@@ -952,13 +1165,20 @@ function handleVRControllers(delta) {
                         const x = uv.x * 1024;
                         const y = (1 - uv.y) * 512;
                         
-                        const keys = [
-                            ['1','2','3','4','5','6','7','8','9','0'],
-                            ['q','w','e','r','t','y','u','i','o','p'],
-                            ['a','s','d','f','g','h','j','k','l'],
-                            ['z','x','c','v','b','n','m'],
-                            ['-','。','、','削除','スペース','完了']
-                        ];
+                        // キーボードキー
+const keys = vrKeyboardLang === 'kana' ? [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['-','。','、','削除','スペース','英字','完了']
+] : [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['-','.','_','削除','スペース','カナ','完了']
+];
                         
                         if(y > 170) {
                             const relY = y - 170;
@@ -1079,12 +1299,18 @@ function handleVRControllers(delta) {
                     const x = uv.x * 1024;
                     const y = (1 - uv.y) * 512;
                     
-              const keys = [
+      const keys = vrKeyboardLang === 'kana' ? [
     ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
     ['a','s','d','f','g','h','j','k','l'],
     ['z','x','c','v','b','n','m'],
-    ['-','。','、','削除','スペース','完了']
+    ['-','。','、','削除','スペース','英字','完了']
+] : [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['-','.','_','削除','スペース','カナ','完了']
 ];
                     
                     if(y > 170) {
@@ -1139,6 +1365,16 @@ function handleVRControllers(delta) {
     updateVRDebugPanel(debugInfo.join('\n'));
 }
 function createVRKeyboard() {
+    // 既存のキーボードの位置を保存
+    let savedPosition = null;
+    let savedRotation = null;
+    if(vrKeyboardPanel) {
+        savedPosition = vrKeyboardPanel.position.clone();
+        savedRotation = vrKeyboardPanel.rotation.clone();
+        scene.remove(vrKeyboardPanel);
+        vrKeyboardPanel = null;
+    }
+    
     const keyboardGroup = new THREE.Group();
     keyboardGroup.name = 'vrKeyboard';
     
@@ -1158,7 +1394,7 @@ function createVRKeyboard() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('メモ入力', 512, 50);
+    ctx.fillText(vrKeyboardLang === 'kana' ? 'メモ入力（カナ）' : 'メモ入力（英字）', 512, 50);
     
     // 入力欄
     ctx.fillStyle = '#333';
@@ -1174,12 +1410,18 @@ function createVRKeyboard() {
     ctx.fillText(vrKeyboardInput || 'ここに入力...', 70, 120);
     
     // キーボードキー
-    const keys = [
+    const keys = vrKeyboardLang === 'kana' ? [
     ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
     ['a','s','d','f','g','h','j','k','l'],
     ['z','x','c','v','b','n','m'],
-    ['-','。','、','削除','スペース','完了']
+    ['-','。','、','削除','スペース','英字','完了']
+] : [
+    ['1','2','3','4','5','6','7','8','9','0'],
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+    ['-','.','_','削除','スペース','カナ','完了']
 ];
     
     const keyWidth = 80;
@@ -1219,12 +1461,18 @@ function createVRKeyboard() {
     );
     keyboardGroup.add(bgMesh);
     
-    const cameraWorldPos = new THREE.Vector3();
-    camera.getWorldPosition(cameraWorldPos);
-    const cameraWorldDir = new THREE.Vector3();
-    camera.getWorldDirection(cameraWorldDir);
-    keyboardGroup.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
-    keyboardGroup.lookAt(cameraWorldPos);
+ // 保存された位置がある場合はそれを使用、なければカメラ前に配置
+    if(savedPosition && savedRotation) {
+        keyboardGroup.position.copy(savedPosition);
+        keyboardGroup.rotation.copy(savedRotation);
+    } else {
+        const cameraWorldPos = new THREE.Vector3();
+        camera.getWorldPosition(cameraWorldPos);
+        const cameraWorldDir = new THREE.Vector3();
+        camera.getWorldDirection(cameraWorldDir);
+        keyboardGroup.position.copy(cameraWorldPos).add(cameraWorldDir.multiplyScalar(2));
+        keyboardGroup.lookAt(cameraWorldPos);
+    }
     keyboardGroup.renderOrder = 10000;
     
     scene.add(keyboardGroup);
@@ -1311,7 +1559,7 @@ function processRomaji(char) {
     return updateVRKeyboard();
   }
 
-  if(key === '完了'){
+if(key === '完了'){
     if(vrKeyboardInput.trim() && vrPendingMemoPosition){
       const pos = vrPendingMemoPosition.clone();
       createMemo(pos, vrKeyboardInput);
@@ -1322,15 +1570,28 @@ function processRomaji(char) {
     return;
   }
 
+  // 言語切り替え
+  if(key === '英字' || key === 'カナ'){
+    vrKeyboardLang = (vrKeyboardLang === 'kana') ? 'alphabet' : 'kana';
+    romajiBuffer = '';
+    createVRKeyboard();
+    return;
+  }
+
   // 数字や記号はそのまま入力
-  if(/[0-9。、ー\-]/.test(key)){
+  if(/[0-9。、ー\-\._]/.test(key)){
     vrKeyboardInput += key;
     return updateVRKeyboard();
   }
 
-  processRomaji(key.toLowerCase());
-  updateVRKeyboard();
-}
+  // 英字モードではそのまま入力、カナモードではローマ字変換
+  if(vrKeyboardLang === 'alphabet'){
+    vrKeyboardInput += key;
+    updateVRKeyboard();
+  } else {
+    processRomaji(key.toLowerCase());
+    updateVRKeyboard();
+  } }
 
 function startEditMemo(memo) {
     if(isRecording) {

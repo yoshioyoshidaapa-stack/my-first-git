@@ -185,7 +185,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/20_1';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/20_2';
 
     function loadFBX(buf) {
         try {
@@ -1543,24 +1543,29 @@ function processRomaji(char) {
   }
 }
 
-
-  function handleVRKeyboardInput(key) {
-
+function handleVRKeyboardInput(key) {
+  // キーが無効な場合は何もしない
+  if(!key || key === undefined || key === null) {
+    return;
+  }
+  
   if(key === '削除'){
     if(romajiBuffer.length){
       romajiBuffer = romajiBuffer.slice(0, -1);
     } else {
       vrKeyboardInput = vrKeyboardInput.slice(0, -1);
     }
-    return updateVRKeyboard();
+    updateVRKeyboard();
+    return;
   }
-
+  
   if(key === 'スペース'){
     vrKeyboardInput += ' ';
-    return updateVRKeyboard();
+    updateVRKeyboard();
+    return;
   }
-
-if(key === '完了'){
+  
+  if(key === '完了'){
     if(vrKeyboardInput.trim() && vrPendingMemoPosition){
       const pos = vrPendingMemoPosition.clone();
       createMemo(pos, vrKeyboardInput);
@@ -1570,21 +1575,32 @@ if(key === '完了'){
     closeVRKeyboard();
     return;
   }
-
+  
   // 言語切り替え
   if(key === '英字' || key === 'カナ'){
     vrKeyboardLang = (vrKeyboardLang === 'kana') ? 'alphabet' : 'kana';
     romajiBuffer = '';
-    createVRKeyboard();
+    // キーボードを一度閉じてから再作成
+    const savedPos = vrKeyboardPanel ? vrKeyboardPanel.position.clone() : null;
+    const savedRot = vrKeyboardPanel ? vrKeyboardPanel.rotation.clone() : null;
+    closeVRKeyboard();
+    setTimeout(() => {
+      createVRKeyboard();
+      if(savedPos && vrKeyboardPanel) {
+        vrKeyboardPanel.position.copy(savedPos);
+        vrKeyboardPanel.rotation.copy(savedRot);
+      }
+    }, 100);
     return;
   }
-
+  
   // 数字や記号はそのまま入力
   if(/[0-9。、ー\-\._]/.test(key)){
     vrKeyboardInput += key;
-    return updateVRKeyboard();
+    updateVRKeyboard();
+    return;
   }
-
+  
   // 英字モードではそのまま入力、カナモードではローマ字変換
   if(vrKeyboardLang === 'alphabet'){
     vrKeyboardInput += key;

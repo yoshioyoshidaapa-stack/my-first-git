@@ -180,12 +180,10 @@ let vrPendingMemoPosition = null;  // ← この行を追加
 
 let vrKeyboardInput = '';
 let vrKeyboardMode = false;
-        let vrKeyboardLang = 'kana'; // 'kana' or 'alphabet'
-        
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_3';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_2';
 
     function loadFBX(buf) {
         try {
@@ -1165,20 +1163,13 @@ function handleVRControllers(delta) {
                         const x = uv.x * 1024;
                         const y = (1 - uv.y) * 512;
                         
-                        // キーボードキー
-const keys = vrKeyboardLang === 'kana' ? [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['z','x','c','v','b','n','m'],
-    ['-','。','、','削除','スペース','英字','完了']
-] : [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['z','x','c','v','b','n','m'],
-    ['-','.','_','削除','スペース','カナ','完了']
-];
+                        const keys = [
+                            ['1','2','3','4','5','6','7','8','9','0'],
+                            ['q','w','e','r','t','y','u','i','o','p'],
+                            ['a','s','d','f','g','h','j','k','l'],
+                            ['z','x','c','v','b','n','m'],
+                            ['-','。','、','削除','スペース','完了']
+                        ];
                         
                         if(y > 170) {
                             const relY = y - 170;
@@ -1299,18 +1290,12 @@ const keys = vrKeyboardLang === 'kana' ? [
                     const x = uv.x * 1024;
                     const y = (1 - uv.y) * 512;
                     
-      const keys = vrKeyboardLang === 'kana' ? [
+              const keys = [
     ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
     ['a','s','d','f','g','h','j','k','l'],
     ['z','x','c','v','b','n','m'],
-    ['-','。','、','削除','スペース','英字','完了']
-] : [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['z','x','c','v','b','n','m'],
-    ['-','.','_','削除','スペース','カナ','完了']
+    ['-','。','、','削除','スペース','完了']
 ];
                     
                     if(y > 170) {
@@ -1384,7 +1369,7 @@ function createVRKeyboard() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 32px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(vrKeyboardLang === 'kana' ? 'メモ入力（カナ）' : 'メモ入力（英字）', 512, 50);
+    ctx.fillText('メモ入力', 512, 50);
     
     // 入力欄
     ctx.fillStyle = '#333';
@@ -1400,18 +1385,12 @@ function createVRKeyboard() {
     ctx.fillText(vrKeyboardInput || 'ここに入力...', 70, 120);
     
     // キーボードキー
-    const keys = vrKeyboardLang === 'kana' ? [
+    const keys = [
     ['1','2','3','4','5','6','7','8','9','0'],
     ['q','w','e','r','t','y','u','i','o','p'],
     ['a','s','d','f','g','h','j','k','l'],
     ['z','x','c','v','b','n','m'],
-    ['-','。','、','削除','スペース','英字','完了']
-] : [
-    ['1','2','3','4','5','6','7','8','9','0'],
-    ['q','w','e','r','t','y','u','i','o','p'],
-    ['a','s','d','f','g','h','j','k','l'],
-    ['z','x','c','v','b','n','m'],
-    ['-','.','_','削除','スペース','カナ','完了']
+    ['-','。','、','削除','スペース','完了']
 ];
     
     const keyWidth = 80;
@@ -1543,7 +1522,7 @@ function processRomaji(char) {
     return updateVRKeyboard();
   }
 
-if(key === '完了'){
+  if(key === '完了'){
     if(vrKeyboardInput.trim() && vrPendingMemoPosition){
       const pos = vrPendingMemoPosition.clone();
       createMemo(pos, vrKeyboardInput);
@@ -1554,28 +1533,15 @@ if(key === '完了'){
     return;
   }
 
-  // 言語切り替え
-  if(key === '英字' || key === 'カナ'){
-    vrKeyboardLang = (vrKeyboardLang === 'kana') ? 'alphabet' : 'kana';
-    romajiBuffer = '';
-    createVRKeyboard();
-    return;
-  }
-
   // 数字や記号はそのまま入力
-  if(/[0-9。、ー\-\._]/.test(key)){
+  if(/[0-9。、ー\-]/.test(key)){
     vrKeyboardInput += key;
     return updateVRKeyboard();
   }
 
-  // 英字モードではそのまま入力、カナモードではローマ字変換
-  if(vrKeyboardLang === 'alphabet'){
-    vrKeyboardInput += key;
-    updateVRKeyboard();
-  } else {
-    processRomaji(key.toLowerCase());
-    updateVRKeyboard();
-  } }
+  processRomaji(key.toLowerCase());
+  updateVRKeyboard();
+}
 
 function startEditMemo(memo) {
     if(isRecording) {

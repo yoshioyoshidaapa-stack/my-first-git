@@ -183,7 +183,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/19_2';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/21_1';
 
     function loadFBX(buf) {
         try {
@@ -343,7 +343,7 @@ document.getElementById('loadButton').addEventListener('click',loadScene);
             vrButton.textContent='VR非対応';
         }
 
-        const c1=renderer.xr.getController(0);
+        //const c1=renderer.xr.getController(0);//1/21claude指摘によりコメント化
         cameraRig.add(c1);
         controllers.push(c1);
         const c2=renderer.xr.getController(1);

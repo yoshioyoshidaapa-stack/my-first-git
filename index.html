@@ -184,7 +184,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/21_3';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/21_4';
 
     function loadFBX(buf) {
         try {
@@ -242,16 +242,20 @@ function initVRControllers() {
     cameraRig.add(g2);
     controllerGrips.push(g2);
     
-    // レイキャストライン
-    const lineGeom = new THREE.BufferGeometry().setFromPoints([
+    // レイキャストライン（別々のジオメトリを作成）← ここが重要！
+    const lineGeom1 = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -2)
+    ]);
+    const lineGeom2 = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(0, 0, -2)
     ]);
     const lineMat1 = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
     const lineMat2 = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
     
-    c1.add(new THREE.Line(lineGeom, lineMat1));
-    c2.add(new THREE.Line(lineGeom, lineMat2));
+    c1.add(new THREE.Line(lineGeom1, lineMat1));
+    c2.add(new THREE.Line(lineGeom2, lineMat2));
     
     console.log(`VR controllers initialized: ${controllers.length} controllers, ${controllerGrips.length} grips`);
 }
@@ -830,11 +834,11 @@ mesh.renderOrder = 9999;
                 offset.subVectors(camera.position,hit.point).normalize();
             }
             pos=hit.point.clone().add(offset.multiplyScalar(0.1));
-        } else {
-            
-            camera.getWorldDirection(dir);
-            pos=camera.position.clone().add(dir.multiplyScalar(3));
-        }
+       } else {
+    const dir = new THREE.Vector3();  // ← これを追加
+    camera.getWorldDirection(dir);
+    pos=camera.position.clone().add(dir.multiplyScalar(3));
+}
         pendingMemoPosition=pos;
 document.getElementById('inputMethodDialog').style.display='block';
 }
@@ -961,9 +965,41 @@ function deleteMemo(id) {
 }
 
 function updateMemoList() {
-    const list=document.getElementById('memoList');
-    list.innerHTML='';
-   
+    const list = document.getElementById('memoList');
+    list.innerHTML = '';
+    
+    if(memos.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.style.color = '#888';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.padding = '20px';
+        emptyMsg.textContent = 'メモがありません';
+        list.appendChild(emptyMsg);
+        return;
+    }
+    
+    memos.forEach(memo => {
+        const item = document.createElement('div');
+        item.className = 'memo-item';
+        
+        const textDiv = document.createElement('div');
+        textDiv.style.marginBottom = '8px';
+        textDiv.style.wordBreak = 'break-word';
+        const displayText = memo.text.length > 50 ? memo.text.substring(0, 50) + '...' : memo.text;
+        textDiv.textContent = displayText;
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = '削除';
+        deleteBtn.onclick = () => {
+            if(confirm(`メモ「${displayText}」を削除しますか?`)) {
+                deleteMemo(memo.id);
+            }
+        };
+        
+        item.appendChild(textDiv);
+        item.appendChild(deleteBtn);
+        list.appendChild(item);
+    });
 }
 
 function createMemoSprite(pos, txt) {

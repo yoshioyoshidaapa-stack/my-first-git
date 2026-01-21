@@ -120,7 +120,8 @@
     let prevTime=performance.now(), euler=new THREE.Euler(0,0,0,'YXZ');
     let isMouseDown=false, lastMouseX=0, lastMouseY=0, zoomLevel=75;
     const MIN_FOV=30, MAX_FOV=100, PLAYER_HEIGHT=1.6, MOVE_SPEED=80, VR_MOVE_SPEED=10, VR_ROTATION_SPEED=1.5;
-    let controllers=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
+  let controllers=[], controllerGrips=[], isVRMode=false, memoMode=false, memos=[], memoCounter=0;
+
     let recognition=null, isRecording=false, pendingMemoPosition=null;
     let vrMemoMode=true;
     let vrDebugText=null, vrDebugCanvas=null;
@@ -183,7 +184,7 @@ let vrKeyboardMode = false;
     let audioContext = null;
     let audioAnalyser = null;
     let audioDataArray = null;
-    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/21_1';
+    const VERSION='A版 v1.0.1', UPDATE_DATE='2026/01/21_3';
 
     function loadFBX(buf) {
         try {
@@ -202,7 +203,123 @@ let vrKeyboardMode = false;
             document.getElementById('status').textContent='FBX読み込みエラー: ' + err.message;
         }
     }
+function initVRControllers() {
+    console.log('Initializing VR controllers...');
+    
+    // コントローラー本体（レイキャスト用）
+    const c1 = renderer.xr.getController(0);
+    cameraRig.add(c1);
+    controllers.push(c1);
+    
+    const c2 = renderer.xr.getController(1);
+    cameraRig.add(c2);
+    controllers.push(c2);
+    
+    // グリップ（視覚表示用）
+    const geom = new THREE.BoxGeometry(0.05, 0.05, 0.15);
+    const mat1 = new THREE.MeshStandardMaterial({
+        color: 0xff5555,
+        emissive: 0xff2222,
+        emissiveIntensity: 0.3
+    });
+    const mat2 = new THREE.MeshStandardMaterial({
+        color: 0x5555ff,
+        emissive: 0x2222ff,
+        emissiveIntensity: 0.3
+    });
+    
+    const g1 = renderer.xr.getControllerGrip(0);
+    const mesh1 = new THREE.Mesh(geom, mat1);
+    mesh1.position.z = -0.075;
+    g1.add(mesh1);
+    cameraRig.add(g1);
+    controllerGrips.push(g1);
+    
+    const g2 = renderer.xr.getControllerGrip(1);
+    const mesh2 = new THREE.Mesh(geom, mat2);
+    mesh2.position.z = -0.075;
+    g2.add(mesh2);
+    cameraRig.add(g2);
+    controllerGrips.push(g2);
+    
+    // レイキャストライン
+    const lineGeom = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(0, 0, -2)
+    ]);
+    const lineMat1 = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+    const lineMat2 = new THREE.LineBasicMaterial({ color: 0x0000ff, linewidth: 2 });
+    
+    c1.add(new THREE.Line(lineGeom, lineMat1));
+    c2.add(new THREE.Line(lineGeom, lineMat2));
+    
+    console.log(`VR controllers initialized: ${controllers.length} controllers, ${controllerGrips.length} grips`);
+}
 
+function cleanupVRControllers() {
+    console.log('Cleaning up VR controllers...');
+    
+    // コントローラー本体をクリーンアップ
+    controllers.forEach(controller => {
+        while(controller.children.length > 0) {
+            const child = controller.children[0];
+            if(child.geometry) child.geometry.dispose();
+            if(child.material) {
+                if(Array.isArray(child.material)) {
+                    child.material.forEach(mat => mat.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
+            controller.remove(child);
+        }
+        cameraRig.remove(controller);
+    });
+    
+    // グリップをクリーンアップ
+    controllerGrips.forEach(grip => {
+        while(grip.children.length > 0) {
+            const child = grip.children[0];
+            if(child.geometry) child.geometry.dispose();
+            if(child.material) {
+                if(Array.isArray(child.material)) {
+                    child.material.forEach(mat => mat.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
+            grip.remove(child);
+        }
+        cameraRig.remove(grip);
+    });
+    
+    // 配列をクリア
+    controllers = [];
+    controllerGrips = [];
+    
+    console.log('VR controllers cleaned up');
+}
+```
+
+---
+
+## 📊 修正の全体像
+```
+元のファイル構造:
+├── グローバル変数宣言
+├── function init() { ... }
+├── function setupVR() { ... }  ← 約100行（重複コードあり）
+├── function createVRDebugPanel() { ... }
+└── ...
+
+修正後のファイル構造:
+├── グローバル変数宣言 + controllerGrips追加
+├── function init() { ... }
+├── function setupVR() { ... }  ← 短く（約40行）
+├── function initVRControllers() { ... }  ← 新規追加
+├── function cleanupVRControllers() { ... }  ← 新規追加
+├── function createVRDebugPanel() { ... }
+└── ...
     function init() {
         document.getElementById('updateDate').textContent=`${VERSION} (${UPDATE_DATE})`;
         scene=new THREE.Scene();
@@ -267,113 +384,48 @@ document.getElementById('loadButton').addEventListener('click',loadScene);
     }
 
     function setupVR() {
-        const vrButton=document.getElementById('vrButton');
-        let controllerGrips = [];
-        
-        if('xr' in navigator) {
-            navigator.xr.isSessionSupported('immersive-vr').then(sup=>{
-                if(sup) {
-                    vrButton.onclick=async()=>{
-                        if(!renderer.xr.isPresenting) {
-                            try {
-                                controllers.forEach(c => {
-                                    c.children.forEach(child => c.remove(child));
-                                    cameraRig.remove(c);
-                                });
-                                controllerGrips.forEach(g => {
-                                    g.children.forEach(child => g.remove(child));
-                                    cameraRig.remove(g);
-                                });
-                                controllers = [];
-                                controllerGrips = [];
-                                
-                                const s=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']});
-                                await renderer.xr.setSession(s);
-                                isVRMode=true;
-                                
-                                const c1=renderer.xr.getController(0);
-                                cameraRig.add(c1);
-                                controllers.push(c1);
-                                const c2=renderer.xr.getController(1);
-                                cameraRig.add(c2);
-                                controllers.push(c2);
-
-                                const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-                                const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
-                                const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
-                                const g1=renderer.xr.getControllerGrip(0);
-                                const mesh1=new THREE.Mesh(geom,mat1);
-                                mesh1.position.z=-0.075;
-                                g1.add(mesh1);
-                                cameraRig.add(g1);
-                                controllerGrips.push(g1);
-                                
-                                const g2=renderer.xr.getControllerGrip(1);
-                                const mesh2=new THREE.Mesh(geom,mat2);
-                                mesh2.position.z=-0.075;
-                                g2.add(mesh2);
-                                cameraRig.add(g2);
-                                controllerGrips.push(g2);
-
-                                const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-                                const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-                                const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-                                c1.add(new THREE.Line(lineGeom,lineMat1));
-                                c2.add(new THREE.Line(lineGeom,lineMat2));
-                                
-                                s.addEventListener('end', () => {
-                                    isVRMode = false;
-                                });
-                            } catch(e) {
-                                console.error('XR start failed', e);
-                            }
+    const vrButton = document.getElementById('vrButton');
+    
+    if('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-vr').then(sup => {
+            if(sup) {
+                vrButton.onclick = async() => {
+                    if(!renderer.xr.isPresenting) {
+                        try {
+                            cleanupVRControllers();
+                            
+                            const session = await navigator.xr.requestSession('immersive-vr', {
+                                optionalFeatures: ['local-floor', 'bounded-floor']
+                            });
+                            await renderer.xr.setSession(session);
+                            isVRMode = true;
+                            
+                            initVRControllers();
+                            
+                            session.addEventListener('end', () => {
+                                isVRMode = false;
+                                cleanupVRControllers();
+                            });
+                        } catch(e) {
+                            console.error('XR start failed', e);
+                            document.getElementById('status').textContent = 'VR起動失敗: ' + e.message;
                         }
-                    };
-                } else {
-                    vrButton.disabled=true;
-                    vrButton.textContent='VR非対応';
-                }
-            }).catch(err=>{
-                console.warn('isSessionSupported error', err);
-                vrButton.disabled=true;
-                vrButton.textContent='VR非対応';
-            });
-        } else {
-            vrButton.disabled=true;
-            vrButton.textContent='VR非対応';
-        }
-
-        //const c1=renderer.xr.getController(0);//1/21claude指摘によりコメント化
-        cameraRig.add(c1);
-        controllers.push(c1);
-        const c2=renderer.xr.getController(1);
-        cameraRig.add(c2);
-        controllers.push(c2);
-
-        const geom=new THREE.BoxGeometry(0.05,0.05,0.15);
-        const mat1=new THREE.MeshStandardMaterial({color:0xff5555,emissive:0xff2222,emissiveIntensity:0.3});
-        const mat2=new THREE.MeshStandardMaterial({color:0x5555ff,emissive:0x2222ff,emissiveIntensity:0.3});
-        const g1=renderer.xr.getControllerGrip(0);
-        const mesh1=new THREE.Mesh(geom,mat1);
-        mesh1.position.z=-0.075;
-        g1.add(mesh1);
-        cameraRig.add(g1);
-        controllerGrips.push(g1);
-        
-        const g2=renderer.xr.getControllerGrip(1);
-        const mesh2=new THREE.Mesh(geom,mat2);
-        mesh2.position.z=-0.075;
-        g2.add(mesh2);
-        cameraRig.add(g2);
-        controllerGrips.push(g2);
-
-        const lineGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,0,-2)]);
-        const lineMat1=new THREE.LineBasicMaterial({color:0xff0000,linewidth:2});
-        const lineMat2=new THREE.LineBasicMaterial({color:0x0000ff,linewidth:2});
-        c1.add(new THREE.Line(lineGeom,lineMat1));
-        c2.add(new THREE.Line(lineGeom,lineMat2));
+                    }
+                };
+            } else {
+                vrButton.disabled = true;
+                vrButton.textContent = 'VR非対応';
+            }
+        }).catch(err => {
+            console.warn('isSessionSupported error', err);
+            vrButton.disabled = true;
+            vrButton.textContent = 'VR非対応';
+        });
+    } else {
+        vrButton.disabled = true;
+        vrButton.textContent = 'VR非対応';
     }
-
+}
     function createVRDebugPanel() {
         vrDebugCanvas=document.createElement('canvas');
         vrDebugCanvas.width=512;

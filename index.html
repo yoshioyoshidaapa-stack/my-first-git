@@ -356,7 +356,7 @@ function cleanupVRControllers() {
         floor.receiveShadow=true;
         scene.add(floor);
 
-        const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.5,32,32),new THREE.MeshStandardMaterial({color:0xff0000}));
+        const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.5,32,32),new THREE.MeshStandardMaterial({color:0x00ff00}));
         sphere.position.set(0,0.5,-3);
         sphere.castShadow=true;
         scene.add(sphere);
